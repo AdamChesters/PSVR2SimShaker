@@ -3,6 +3,7 @@
 #include "haptics.hpp"
 #include "integration.hpp"
 #include "resource.h"
+#include "logo.hpp"
 #include <imgui.h>
 #include <imgui_impl_win32.h>
 #include <imgui_impl_dx11.h>
@@ -16,19 +17,20 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,UINT,WPARAM,LP
 namespace shaker {
 namespace {
 ID3D11Device* device=nullptr;ID3D11DeviceContext* context=nullptr;IDXGISwapChain* swapchain=nullptr;ID3D11RenderTargetView* target=nullptr;
+ID3D11ShaderResourceView* logoTexture=nullptr;
 App* activeApp=nullptr;bool visible=false;bool hotkeyRegistered=false;
 constexpr UINT trayMessage=WM_APP+1,showMessage=WM_APP+2;
 constexpr wchar_t windowClass[]=L"PSVR2SimShakerWindow";
 void cleanTarget(){if(target){target->Release();target=nullptr;}}
 void makeTarget(){ID3D11Texture2D* buffer=nullptr;if(SUCCEEDED(swapchain->GetBuffer(0,IID_PPV_ARGS(&buffer)))){device->CreateRenderTargetView(buffer,nullptr,&target);buffer->Release();}}
-void cleanDevice(){cleanTarget();if(swapchain){swapchain->Release();swapchain=nullptr;}if(context){context->Release();context=nullptr;}if(device){device->Release();device=nullptr;}}
+void cleanDevice(){if(logoTexture){logoTexture->Release();logoTexture=nullptr;}cleanTarget();if(swapchain){swapchain->Release();swapchain=nullptr;}if(context){context->Release();context=nullptr;}if(device){device->Release();device=nullptr;}}
 bool makeDevice(HWND window){
     DXGI_SWAP_CHAIN_DESC desc{};desc.BufferCount=2;desc.BufferDesc.Format=DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.BufferUsage=DXGI_USAGE_RENDER_TARGET_OUTPUT;desc.OutputWindow=window;desc.SampleDesc.Count=1;desc.Windowed=TRUE;desc.SwapEffect=DXGI_SWAP_EFFECT_DISCARD;
     D3D_FEATURE_LEVEL level;D3D_FEATURE_LEVEL levels[]={D3D_FEATURE_LEVEL_11_0,D3D_FEATURE_LEVEL_10_0};
     HRESULT result=D3D11CreateDeviceAndSwapChain(nullptr,D3D_DRIVER_TYPE_HARDWARE,nullptr,0,levels,2,D3D11_SDK_VERSION,&desc,&swapchain,&device,&level,&context);
     if(FAILED(result))result=D3D11CreateDeviceAndSwapChain(nullptr,D3D_DRIVER_TYPE_WARP,nullptr,0,levels,2,D3D11_SDK_VERSION,&desc,&swapchain,&device,&level,&context);
-    if(FAILED(result))return false;makeTarget();return target!=nullptr;
+    if(FAILED(result))return false;makeTarget();logoTexture=createLogoTexture(device);return target!=nullptr;
 }
 void show(HWND window){ShowWindow(window,SW_RESTORE);SetForegroundWindow(window);visible=true;}
 LRESULT WINAPI windowProc(HWND window,UINT message,WPARAM w,LPARAM l){
@@ -100,7 +102,7 @@ int runWindow(HINSTANCE instance){
                 if(fs::exists(L"C:/Windows/Fonts/georgiab.ttf"))io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/georgiab.ttf",34.f);
                 style();ImGui_ImplWin32_Init(window);ImGui_ImplDX11_Init(device,context);renderer=true;
             }
-            ImGui_ImplDX11_NewFrame();ImGui_ImplWin32_NewFrame();ImGui::NewFrame();app.render();
+            ImGui_ImplDX11_NewFrame();ImGui_ImplWin32_NewFrame();ImGui::NewFrame();app.render(logoTexture);
             if(!hotkeyRegistered){ImGui::SetNextWindowPos({400,16},ImGuiCond_Once);ImGui::Begin("Shortcut unavailable",nullptr,ImGuiWindowFlags_AlwaysAutoResize);ImGui::TextUnformatted("Ctrl+Alt+Space is in use. The STOP button and tray menu remain available.");ImGui::End();}
             ImGui::Render();const float clear[]={.025f,.029f,.034f,1};context->OMSetRenderTargets(1,&target,nullptr);context->ClearRenderTargetView(target,clear);ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
             HRESULT hr=swapchain->Present(1,0);if(hr==DXGI_STATUS_OCCLUDED)Sleep(50);
