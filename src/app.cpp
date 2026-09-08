@@ -231,7 +231,7 @@ void App::run(std::stop_token stop){
     haptics.update(0,GetTickCount64());haptics.stop();
 }
 
-void App::render(){
+void App::render(void* logo){
     auto s=settings();const auto v=snapshot();bool changed=false;
     const auto now=GetTickCount64();
     if(!hookCheckAt_ || now-hookCheckAt_>=2000){
@@ -249,12 +249,14 @@ void App::render(){
         ImGui::TableSetupColumn("Pages",ImGuiTableColumnFlags_WidthFixed,336);
         ImGui::TableSetupColumn("Stop",ImGuiTableColumnFlags_WidthFixed,112);
         ImGui::TableNextColumn();ImGui::BeginGroup();
+        if(logo){ImGui::Image(ImTextureID(reinterpret_cast<uintptr_t>(logo)),{64,64});ImGui::SameLine(0,14);}
+        ImGui::BeginGroup();
         auto& fonts=ImGui::GetIO().Fonts->Fonts;ImGui::PushFont(fonts.Size>1?fonts[1]:nullptr,34);
         const float titleBaseline=ImGui::GetCursorPosY()+ImGui::GetFontBaked()->Ascent;
         ImGui::TextColored({.35f,.73f,.84f,1},"PSVR2SimShaker");ImGui::PopFont();
         ImGui::SameLine(0,10);ImGui::PushFont(nullptr,16);
         ImGui::SetCursorPosY(titleBaseline-ImGui::GetFontBaked()->Ascent);ImGui::TextColored({.35f,.73f,.84f,1},"(GitHub)");ImGui::PopFont();
-        ImGui::PushFont(nullptr,20);ImGui::TextUnformatted("by Adam Chesters");ImGui::PopFont();ImGui::EndGroup();
+        ImGui::PushFont(nullptr,20);ImGui::TextUnformatted("by Adam Chesters");ImGui::PopFont();ImGui::EndGroup();ImGui::EndGroup();
         if(ImGui::IsItemHovered()){ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);ImGui::SetTooltip("Open PSVR2SimShaker on GitHub");}
         if(ImGui::IsItemClicked())ShellExecuteW(nullptr,L"open",L"https://github.com/AdamChesters/PSVR2SimShaker",nullptr,nullptr,SW_SHOWNORMAL);
         ImGui::TableNextColumn();const char* pages[]={"Effects","Headset","Settings"};

@@ -46,7 +46,7 @@ public:
     ~App();
     void command(Command c);
     void emergencyStop();
-    void render();
+    void render(void* logo=nullptr);
     Settings settings()const;
     Snapshot snapshot()const;
 };

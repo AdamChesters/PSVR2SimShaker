@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 Alpha
+
+- Show the application logo at the top left beside the title. The logo is embedded in the executable and restored when the graphics device is recreated.
+
 ## 0.2.2 Alpha
 
 - Align the small GitHub link to the title baseline.
