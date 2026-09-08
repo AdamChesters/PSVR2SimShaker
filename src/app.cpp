@@ -250,8 +250,10 @@ void App::render(){
         ImGui::TableSetupColumn("Stop",ImGuiTableColumnFlags_WidthFixed,112);
         ImGui::TableNextColumn();ImGui::BeginGroup();
         auto& fonts=ImGui::GetIO().Fonts->Fonts;ImGui::PushFont(fonts.Size>1?fonts[1]:nullptr,34);
+        const float titleBaseline=ImGui::GetCursorPosY()+ImGui::GetFontBaked()->Ascent;
         ImGui::TextColored({.35f,.73f,.84f,1},"PSVR2SimShaker");ImGui::PopFont();
-        ImGui::SameLine(0,10);ImGui::PushFont(nullptr,16);ImGui::TextColored({.35f,.73f,.84f,1},"(GitHub)");ImGui::PopFont();
+        ImGui::SameLine(0,10);ImGui::PushFont(nullptr,16);
+        ImGui::SetCursorPosY(titleBaseline-ImGui::GetFontBaked()->Ascent);ImGui::TextColored({.35f,.73f,.84f,1},"(GitHub)");ImGui::PopFont();
         ImGui::PushFont(nullptr,20);ImGui::TextUnformatted("by Adam Chesters");ImGui::PopFont();ImGui::EndGroup();
         if(ImGui::IsItemHovered()){ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);ImGui::SetTooltip("Open PSVR2SimShaker on GitHub");}
         if(ImGui::IsItemClicked())ShellExecuteW(nullptr,L"open",L"https://github.com/AdamChesters/PSVR2SimShaker",nullptr,nullptr,SW_SHOWNORMAL);
@@ -269,12 +271,12 @@ void App::render(){
     const float statusWidth=ImGui::GetContentRegionAvail().x;
     const bool statusList=statusWidth<980.f;
     if(ImGui::BeginTable("ConnectionLights",statusList?1:4,ImGuiTableFlags_SizingStretchSame,{std::min(statusWidth,980.f),0})){
+        ImGui::TableNextColumn();renderUpdates();
         ImGui::TableNextColumn();const auto hook=installedHooks_?(installedHooks_==hookProfiles_?std::string("Installed"):std::to_string(installedHooks_)+"/"+std::to_string(hookProfiles_)+" profiles"):"Not installed";
         statusLight("DCS hook",hook,installedHooks_>0,hookDetail_);
         ImGui::TableNextColumn();statusLight("DCS telemetry",v.flight.telemetryLive?"Live":"Waiting / paused",v.flight.telemetryLive,"Lights when real shared-memory telemetry has an advancing DCS clock. Tests do not change this light.");
         ImGui::TableNextColumn();const auto aircraft=v.flight.aircraftLive?(v.flight.supported?std::string("Live / Hornet"):std::string("Live / unsupported")):"Waiting";
         statusLight("Aircraft",aircraft,v.flight.aircraftLive,"Requires aircraft identity and numeric signals in the live DCS feed. Individual effects still depend on their own signals. Aircraft: "+(v.flight.aircraft.empty()?std::string("none"):v.flight.aircraft));
-        ImGui::TableNextColumn();renderUpdates();
         ImGui::EndTable();
     }
     ImGui::Separator();ImGui::Spacing();

@@ -1,11 +1,11 @@
 #ifndef AppVersion
-  #define AppVersion "0.2.1-alpha"
+  #define AppVersion "0.2.2-alpha"
 #endif
 #ifndef AppNumericVersion
-  #define AppNumericVersion "0.2.1"
+  #define AppNumericVersion "0.2.2"
 #endif
 #ifndef AppDisplayVersion
-  #define AppDisplayVersion "0.2.1 Alpha"
+  #define AppDisplayVersion "0.2.2 Alpha"
 #endif
 #ifndef PackageDir
   #define PackageDir "..\dist\package"

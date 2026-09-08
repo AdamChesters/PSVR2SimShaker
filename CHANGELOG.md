@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 Alpha
+
+- Align the small GitHub link to the title baseline.
+- Put version status first in both the four-column row and narrow list.
+
 ## 0.2.1 Alpha
 
 - Compact four-column status strip, collapsing into a list in narrower windows.
