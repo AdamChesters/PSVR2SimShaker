@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.1.1"
 #endif
 #ifndef PackageDir
   #define PackageDir "..\dist\package"
@@ -25,6 +25,7 @@ OutputBaseFilename=PSVR2SimShaker-{#AppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 UninstallDisplayIcon={app}\PSVR2SimShaker.exe
+SetupIconFile=..\assets\PSVR2SimShaker.ico
 CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes

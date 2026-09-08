@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Original SimShaker icon for the app, taskbar, system tray and installer.
+- PNG master and multi-size Windows ICO included with the source and downloads.
+
 ## 0.1.0 — Initial public preview
 
 - Independent DCS export and shared-memory telemetry for the F/A-18C Hornet.
