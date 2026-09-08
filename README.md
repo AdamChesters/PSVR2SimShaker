@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/social-preview.jpg" alt="PSVR2SimShaker — Feel your flight. DCS World haptics for PSVR2 on PC, by Adam Chesters." width="1280">
+</p>
+
 # PSVR2SimShaker
 
 Leverage DCS World haptics for the Playstation VR2 (PSVR2) headset on PC, by Adam Chesters.
