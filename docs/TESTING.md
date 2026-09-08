@@ -11,7 +11,7 @@ The Windows x64 Release build has four CTest suites:
 
 The optional `update_tests --live <download-folder>` check retrieves the newest public release and downloads/verifies its installer without launching it. This is separate from offline CTest runs and does not access the headset.
 
-For 0.2 Alpha, the public GitHub lookup and installer checksum check passed. Current, available, downloading and offline UI states were rendered offscreen at the minimum window size to check colours and text wrapping, with hardware and settings writes disabled. The installer handoff has not been exercised against a running user's installation.
+For 0.2 Alpha, the public GitHub lookup and installer checksum check passed. Current, available, downloading and offline UI states were rendered offscreen at the minimum window size to check colours and text wrapping, with hardware and settings writes disabled. The installer handoff has not been directly observed against a running user's installation. A manual 0.2 Alpha installation with the app closed preserved the saved settings; a later installed binary was verified as 0.2.3 Alpha. That version check alone does not validate the in-app updater handoff.
 
 Full demo sequences are checked with 4.8, 12.1 and 15 seconds of gear travel per direction. All nine enabled cues, both gear strokes, disabled cues and quiet phases are exercised. Test binaries are not packaged.
 
@@ -20,6 +20,8 @@ The Lua exporter has also been exercised against the DCS Lua runtime using contr
 Sustained-cue tests include 30 seconds in afterburner, a single ignition across both engines, temporary takeover by gunfire, resuming the rumble, independent enable/strength controls, profile migration, missing signals, a new session already in afterburner, stale telemetry and leaving afterburner. Gear and speedbrake airflow are each exercised beyond deployment with ground contact and priority suppression.
 
 Priority regression tests overlay strong buffet on every event and configuration cue, including deliberate quiet recovery. Migration tests preserve other tuning, custom priorities and subsequent user edits.
+
+The 0.2.3 Alpha release passed all four CTest suites and Windows CI. Subsequent UI checks covered the embedded application logo, baseline-aligned GitHub link, Version-first status order, wide four-column and narrow list layouts, flashing/dim update indicator states, and update-dialog wrapping. These visual checks used offscreen rendering; they do not establish live-flight behaviour.
 
 ## App and hardware checks
 
