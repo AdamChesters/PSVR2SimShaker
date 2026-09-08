@@ -1,0 +1,16 @@
+Generation mode: OpenAI built-in image_gen, with the existing app logo as a reference. Approved by Adam Chesters. Prepared as a 1280 x 640 JPEG for GitHub social previews.
+
+Use case: ads-marketing.
+Create a polished GitHub repository social preview card for PSVR2SimShaker using the attached existing logo as a supporting brand input. This is a new wide composition, not a redesign of the logo.
+Canvas: exactly 1280 by 640 pixels, 2:1 landscape. Opaque dark charcoal background. Optimized for readability as a small social-share thumbnail. Flat clean areas rather than grain, suitable for a PNG under 1 MB.
+Brand: preserve the reference logo's off-white S, two cyan vibration arcs on each side and rounded charcoal square. Display it prominently near the upper left, with ample breathing room.
+Art direction: restrained independent developer software branding matching a charcoal/cyan desktop application, editorial serif headline typography with a clean sans serif supporting font. Crisp, premium, technically confident. No gradients of purple, no neon gaming clutter, no glossy dashboard mockup.
+Composition: a strong left-aligned typographic layout with generous 64-pixel safe margins; subtle aviation illustration to the right and behind the lower right negative space, depicting an elegant top/three-quarter view F/A-18-style twin-tail fighter silhouette in dark blue-grey and fine muted cyan contour strokes. A few clean vibration-wave lines subtly connect the aviation motif with the logo. Keep all artwork subordinate to the text and avoid text overlaps.
+Exact text, spelled precisely:
+"PSVR2SimShaker" — the dominant product name, in one line, large and unmistakable.
+"Feel your flight." — secondary editorial serif line.
+"DCS World haptics for PSVR2 on PC" — clear supporting line.
+"by Adam Chesters" — small but readable credit.
+Only these four text strings. Do not add version numbers, badges, URLs or features.
+Palette: near-black charcoal #080b0d, muted blue-grey, cyan #58b8ca and warm off-white.
+Constraints: no Sony logo, no PlayStation symbols, no DCS logo, no GitHub mascot, no headset product photograph, no real-world aircraft insignia, no watermark. Preserve the existing app logo identity. The result should read as a finished original social sharing graphic, not a screenshot or a template.
