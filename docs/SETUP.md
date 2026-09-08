@@ -9,6 +9,8 @@
 
 ## Start a headset session
 
+**Headset haptics WILL NOT WORK unless `vr2jb.exe` has successfully unlocked the headset for the current power session. Required order: `vr2jb.exe` → SteamVR → PSVR2SimShaker → DCS.**
+
 For a headset already configured with compatible PSVR2Toolkit and firmware 6.00, use **`vr2jb.exe` from [vr2jb v1.0.1](https://github.com/BnuuySolutions/vr2jb/releases/tag/v1.0.1)**:
 
 1. Exit **DCS, SteamVR, the PlayStation VR2 App and PSVR2SimShaker**. In SimShaker use **Settings → Exit application** or the tray's **Exit**. The window's X only hides it.
@@ -41,7 +43,7 @@ The top bar remains visible on every page:
 
 Tests never light the real DCS indicators. The direct headset test plays four 500 ms bursts with 250 ms gaps at the selected strength, independently of the flight ceiling. Effect tests and Demo flight respect Master and the ceiling. Pressing a test button unmutes; **STOP** mutes and cancels it. **Stop test** ends the test and lets available DCS effects resume.
 
-**Headset → Demo flight** follows your enabled mix: ground roll → gear up → gun burst → airborne buffet → airbrake airflow → afterburner ignition → store release → countermeasures → gear down → touchdown → finish. The timeline highlights the current stage and marks completed ones. Its timings come from the same schedule as the generated telemetry, using your saved gear travel time. It waits for the headset before starting. Optional engine/runway cues stay quiet unless enabled. No DCS mission is needed.
+**Headset → Demo flight** follows your enabled mix: ground roll → gear up → gun burst → airborne buffet → airbrake airflow → afterburner ignition and sustained rumble → store release → countermeasures → gear down → touchdown → finish. The timeline highlights the current stage and marks completed ones. Its timings come from the same schedule as the generated telemetry, using your saved gear travel time. It waits for the headset before starting. Optional engine/runway cues stay quiet unless enabled. No DCS mission is needed.
 
 ## Flight operation
 
@@ -59,7 +61,13 @@ If the toolkit times out, output is faulted until reconnect. A driver hung insid
 
 Settings save under `%LOCALAPPDATA%\PSVR2SimShaker`. Exported tuning profiles omit machine paths and mute state. Recording and replay are not included.
 
-Diagnostic reports include toolkit hash, application status and current effect signals. Review a report before sharing it. There is no telemetry upload or background network service.
+Diagnostic reports include toolkit hash, application status and current effect signals. Review a report before sharing it. No telemetry or tuning is uploaded. The app contacts GitHub to check public releases at launch; an installer is downloaded only when you choose to update.
+
+## Updating
+
+The title area shows **Current version** in green when no newer release is published, or **New version available** in yellow. Alpha releases are included. Click the indicator to review the release, then choose **Download and install**. Close DCS before installing so it can release the export bridge DLL. The app verifies the downloaded installer's size and SHA-256 against GitHub release metadata, then opens the installer and exits. Your saved tuning and installation folder are retained; select **Open PSVR2SimShaker** at the end to restart the app. Updating does not replace the headset unlock or SteamVR startup steps.
+
+If the check fails, the indicator stays grey, with **Check again** and **Open Releases** available when clicked. A release without a verifiable installer can be downloaded manually from its page. Portable users can install into the current folder or update manually from the ZIP. Checks use GitHub's public API without an account or token; network errors and rate limits do not interrupt flight effects.
 
 ## Removal
 

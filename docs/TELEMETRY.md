@@ -9,6 +9,7 @@ The app owns its DCS exporter and shared-memory publisher. Other haptic applicat
 | Gun | Falling cannon ammunition | Rearm and mission changes establish a baseline. Unlimited-ammunition missions need validation. |
 | Touchdown | Descending wheel contact after at least 500 ms airborne; 1.1 s cooldown | Carrier-relative velocity is unavailable. |
 | Afterburner onset | Either engine crosses the engagement threshold; hysteresis and cooldown | One combined kick/rumble. A starting or restored AB signal establishes a baseline. |
+| Afterburner rumble | Maximum of the two engine AB draw arguments while engaged | Ongoing rumble with separate tuning. Starts from current state, including on reconnect; missing either signal stops it. |
 | Store release | Falling airborne stores count, only when every returned station count is valid | Includes jettison; enabled by default. Missing or malformed station values omit the whole count. |
 | Countermeasures | Falling flare or chaff count | Rapid programs coalesce into bounded pulses. Rearm and missing counts do not trigger. |
 | Runway bumps | Changes from a slow vertical-acceleration baseline while rolling | Optional and off. A steady signal produces no continuous rumble. |

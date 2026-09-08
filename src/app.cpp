@@ -2,6 +2,7 @@
 #include "telemetry.hpp"
 #include "haptics.hpp"
 #include "integration.hpp"
+#include "version.hpp"
 #include <imgui.h>
 #include <commdlg.h>
 #include <algorithm>
@@ -66,7 +67,7 @@ App::App(){
     calibrationLow_=settings_.motorFloor;calibrationHigh_=settings_.motorCap;testMotor_=std::min(15,settings_.motorCap);
     worker_=std::jthread([this](std::stop_token stop){run(stop);});
 }
-App::~App(){worker_.request_stop();if(worker_.joinable())worker_.join();try{save();}catch(...){} }
+App::~App(){updates_.cancel();worker_.request_stop();if(worker_.joinable())worker_.join();try{save();}catch(...){} }
 Settings App::settings()const{std::lock_guard lock(mutex_);return settings_;}
 Snapshot App::snapshot()const{std::lock_guard lock(mutex_);return snapshot_;}
 void App::command(Command c){std::lock_guard lock(mutex_);commands_.push_back(std::move(c));}
@@ -74,6 +75,68 @@ void App::save(){writeTextAtomic(dataDirectory()/L"settings.json",settings().jso
 void App::emergencyStop(){
     {std::lock_guard lock(mutex_);settings_.muted=true;commands_.push_back({Action::Stop});}
     settingsDirty_=true;saveAt_=GetTickCount64()+200;
+}
+void App::renderUpdates(){
+    const auto u=updates_.status();
+    const bool available=u.release&&compareVersions(u.release->version,appVersion)>0;
+    const bool busy=u.state==UpdateState::Checking||u.state==UpdateState::Downloading;
+    const auto color=u.state==UpdateState::Current?ImVec4(.38f,.83f,.60f,1):
+        available?ImVec4(1.f,.78f,.30f,1):ImVec4(.55f,.59f,.62f,1);
+    const std::string label=u.state==UpdateState::Checking?"Checking for updates...":
+        u.state==UpdateState::Downloading?"Downloading update...":
+        u.state==UpdateState::Ready?"Update ready to install":
+        available?"New version available":u.state==UpdateState::Current?
+        std::string("Current version / ")+appVersionDisplay:"Version check unavailable";
+    ImGui::PushStyleColor(ImGuiCol_Text,color);ImGui::TextUnformatted(label.c_str());ImGui::PopStyleColor();
+    if(ImGui::IsItemHovered()){
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        ImGui::SetTooltip("Installed: %s\nClick for release details and updates",appVersionDisplay);
+    }
+    if(ImGui::IsItemClicked())ImGui::OpenPopup("Application updates");
+    auto install=[&]{
+        updateInstallRequested_=false;
+        try{
+            if(!u.release)throw std::runtime_error("The release could not be verified. Check again.");
+            verifyInstaller(u.installer,*u.release);save();
+            if(!launchInstaller(u.installer,appDirectory()))throw std::runtime_error("The installer could not be opened. Retry or open Releases.");
+            // The normal app shutdown stops the haptics helper and saves tuning.
+            // Inno Setup opens visibly and offers to restart the app when finished.
+            PostQuitMessage(0);
+        }catch(const std::exception& e){updateLaunchError_=e.what();}
+    };
+    if(u.state==UpdateState::Ready&&updateInstallRequested_)install();
+    ImGui::SetNextWindowSize({560,0});
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),ImGuiCond_Appearing,{.5f,.5f});
+    if(ImGui::BeginPopupModal("Application updates",nullptr,ImGuiWindowFlags_AlwaysAutoResize)){
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX()+500);
+        ImGui::Text("Installed: %s",appVersionDisplay);
+        if(u.release)ImGui::TextWrapped("Newest published release: %s",u.release->version.c_str());
+        if(u.state==UpdateState::Current)ImGui::TextWrapped("You're running the current version. No newer release is published on GitHub.");
+        if(u.state==UpdateState::Checking)ImGui::TextWrapped("Checking the project's GitHub releases, including Alpha releases...");
+        if(available){
+            ImGui::TextWrapped("Download the Windows installer and update this installation. Your saved tuning is retained. PSVR2SimShaker will close when the installer opens; select Open PSVR2SimShaker at the end to restart it.");
+            ImGui::TextWrapped("Close DCS before installing so its export bridge can be updated.");
+            if(!u.release->installable())ImGui::TextWrapped("This release has no Windows installer with a GitHub SHA-256 checksum. Open Releases to download it manually.");
+        }
+        if(!u.message.empty())ImGui::TextWrapped("%s",u.message.c_str());
+        if(!updateLaunchError_.empty())ImGui::TextWrapped("%s",updateLaunchError_.c_str());
+        if(u.state==UpdateState::Downloading){
+            ImGui::ProgressBar(u.release&&u.release->size?float(double(u.downloaded)/double(u.release->size)):0,{-1,0});
+            ImGui::TextWrapped("Downloading and verifying the installer...");
+            if(ImGui::Button("Cancel download")){updateInstallRequested_=false;updates_.cancel();}
+        }else if(u.state==UpdateState::Ready){
+            if(ImGui::Button("Open installer"))install();
+        }else if(available&&u.release->installable()&&!busy){
+            if(ImGui::Button("Download and install")){updateLaunchError_.clear();updateInstallRequested_=true;updates_.download();}
+        }
+        if(ImGui::Button("Open Releases")){
+            const auto page=u.release?u.release->page:std::string(releasesUrl);
+            ShellExecuteW(nullptr,L"open",wide(page).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        }
+        if(!busy){continueRow("Check again");if(ImGui::Button("Check again")){updateInstallRequested_=false;updateLaunchError_.clear();updates_.check();}}
+        continueRow("Close");if(ImGui::Button("Close"))ImGui::CloseCurrentPopup();
+        ImGui::PopTextWrapPos();ImGui::EndPopup();
+    }
 }
 void App::run(std::stop_token stop){
     TelemetryReader reader;FlightFeed flightFeed;EffectEngine engine;HapticsClient haptics;Frame lastFrame;
@@ -194,6 +257,7 @@ void App::render(){
             ImGui::PushStyleColor(ImGuiCol_Button,page_==i?ImVec4(.14f,.29f,.34f,1):ImVec4(.055f,.07f,.08f,1));
             if(ImGui::Button(pages[i],{100,38}))page_=i;ImGui::PopStyleColor();
         }
+        renderUpdates();
         ImGui::TableNextColumn();ImGui::PushStyleColor(ImGuiCol_Button,{.29f,.12f,.13f,1});
         if(ImGui::Button("STOP",{108,38})){emergencyStop();s.muted=true;changed=true;}ImGui::PopStyleColor();
         if(ImGui::IsItemHovered())ImGui::SetTooltip("Stop and mute all output. Ctrl + Alt + Space.");ImGui::EndTable();
@@ -306,7 +370,7 @@ void App::render(){
             ImGui::TableNextColumn();changed|=ImGui::Checkbox("Muted",&s.muted);ImGui::EndTable();
         }
         ImGui::Spacing();
-        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Afterburner),size_t(Stores),size_t(Countermeasures),size_t(Buffet),size_t(Airflow)})drawEffect(i);
+        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Buffet),size_t(Airflow)})drawEffect(i);
         if(ImGui::CollapsingHeader("Optional ambience")){
             ImGui::TextWrapped("Extra continuous feedback if you do not use a haptic seat or stick. Off in the default mix.");
             drawEffect(Engine);drawEffect(Taxi);
@@ -383,7 +447,7 @@ void App::render(){
             char name[128]{};strncpy_s(name,s.profile.c_str(),_TRUNCATE);
             if(labeledControl("Profile name",[&]{return ImGui::InputText("##Name",name,sizeof(name));})){s.profile=name;changed=true;}
             if(ImGui::Button("Apply default headset mix")){applyHeadsetMix(s);changed=true;uiMessage_="Flight cues updated. Your gear rhythm, demo travel and headset range were preserved.";}
-            ImGui::TextWrapped("Eight flight cues on; optional engine and runway ambience off. Preserves gear tuning, master response and the headset ceiling.");
+            ImGui::TextWrapped("Nine flight cues on; optional engine and runway ambience off. Preserves gear tuning, master response and the headset ceiling.");
             if(ImGui::Button("Export profile...")){auto p=chooseFile(true,jsonFilter,L"json");if(!p.empty())try{
                 auto j=s.json();for(const char* k:{"toolkitPath","dcsProfiles","muted"})j.erase(k);
                 writeTextAtomic(p,j.dump(2));uiMessage_="Profile exported.";
@@ -397,7 +461,7 @@ void App::render(){
             if(ImGui::TreeNode("More presets")){
                 auto defaults=[&]{auto mix=Settings{};fitEffectRanges(mix,s.motorFloor,s.motorCap);s.effects=mix.effects;};
                 if(ImGui::Button("Comfort")){defaults();s.master=.65f;s.profile="Hornet - Comfort";changed=true;}
-                continueRow("Events only");if(ImGui::Button("Events only")){defaults();for(size_t i:{size_t(Buffet),size_t(Airflow),size_t(Engine),size_t(Taxi)})s.effects[i].enabled=false;s.profile="Hornet - Events";changed=true;}
+                continueRow("Events only");if(ImGui::Button("Events only")){defaults();for(size_t i:{size_t(Buffet),size_t(Airflow),size_t(AfterburnerRumble),size_t(Engine),size_t(Taxi)})s.effects[i].enabled=false;s.profile="Hornet - Events";changed=true;}
                 ImGui::TreePop();
             }
         }
@@ -423,7 +487,7 @@ void App::render(){
             ImGui::Text("Motor requested %d / acknowledged %d",v.requested,v.acknowledged);
             ImGui::TextWrapped("Telemetry: %s",v.source.c_str());
             if(ImGui::Button("Export diagnostic report...")){auto p=chooseFile(true,jsonFilter,L"json");if(!p.empty())try{
-                Json j={{"appVersion","0.1.1"},{"headset",v.headset},{"source",v.source},{"requested",v.requested},{"acknowledged",v.acknowledged},{"telemetry",frameJson(v.frame)},{"ageMs",v.ageMs},{"toolkitSha256",capi.empty()?"missing":sha256(capi)}};
+                Json j={{"appVersion",appVersion},{"headset",v.headset},{"source",v.source},{"requested",v.requested},{"acknowledged",v.acknowledged},{"telemetry",frameJson(v.frame)},{"ageMs",v.ageMs},{"toolkitSha256",capi.empty()?"missing":sha256(capi)}};
                 writeTextAtomic(p,j.dump(2));uiMessage_="Diagnostic report saved; review before sharing.";
             }catch(const std::exception& e){uiMessage_=e.what();}}
             if(ImGui::TreeNode("Live signal values")){
@@ -433,7 +497,7 @@ void App::render(){
             }
             ImGui::TextWrapped("Damage and ejection are deferred until reliable own-aircraft events are verified. Missing signals cannot trigger an effect.");
         }
-        ImGui::Dummy({0,18});mutedText("PSVR2SimShaker 0.1.1 / preview");
+        ImGui::Dummy({0,18});mutedText((std::string("PSVR2SimShaker ")+appVersionDisplay).c_str());
         if(ImGui::Button("Source and credits"))ShellExecuteW(nullptr,L"open",L"https://github.com/AdamChesters/PSVR2SimShaker",nullptr,nullptr,SW_SHOWNORMAL);
         continueRow("Settings folder");if(ImGui::Button("Settings folder"))openPath(dataDirectory());
         continueRow("Exit application");if(ImGui::Button("Exit application"))PostQuitMessage(0);
@@ -458,7 +522,7 @@ void App::render(){
 }
 
 int runProbe(int motor,const fs::path& output){
-    HapticsClient client;Json report={{"appVersion","0.1.1"},{"requestedMotor",motor}};auto path=toolkitFile();
+    HapticsClient client;Json report={{"appVersion",appVersion},{"requestedMotor",motor}};auto path=toolkitFile();
     try{report["toolkitSha256"]=sha256(path);client.start(path);}catch(const std::exception&e){report["error"]=e.what();writeTextAtomic(output,report.dump(2));return 2;}
     const auto start=GetTickCount64();uint64_t began=0,stopSent=0;bool acknowledged=false,stopped=false;
     while(GetTickCount64()-start<10000){
