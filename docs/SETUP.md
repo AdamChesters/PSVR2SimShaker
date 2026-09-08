@@ -35,8 +35,9 @@ The gear **Test** uses both directions and excludes gear drag. **Tune → Demo t
 
 ## Status lights and tests
 
-The top bar remains visible on every page:
+The top bar remains visible on every page, in this order:
 
+- **Version** is green when current; a newer release makes the light flash yellow and the text turn yellow. Click it for update details. Checking or unavailable status is grey.
 - **DCS hook** checks the marked export entry and both owned Lua/DLL files in detected/saved profiles. A partial installation is not marked installed. If only some profiles have the hook, the indicator reports the count.
 - **DCS telemetry** lights for recent shared-memory packets with an advancing simulator clock. It returns to waiting when DCS pauses, stops or goes stale.
 - **Aircraft** additionally requires a flying state, aircraft identity and numeric signals. Unsupported aircraft are labelled explicitly; only the Hornet drives effects. Individual cues require their own signals.
