@@ -1,8 +1,10 @@
 # PSVR2SimShaker
 
+<img src="assets/PSVR2SimShaker.png" alt="SimShaker S and vibration ripples" width="96" height="96">
+
 Independent DCS World headset haptics for PlayStation VR2, by Adam Chesters.
 
-**0.1.0 — initial public preview.** Windows x64; F/A-18C Hornet. PSVR2SimShaker reads DCS through its own export hook and shared-memory bridge. It works alongside seat and joystick haptics without requiring SimHaptic or TelemFFB.
+**0.1.1 — public preview.** Windows x64; F/A-18C Hornet. PSVR2SimShaker reads DCS through its own export hook and shared-memory bridge. It works alongside seat and joystick haptics without requiring SimHaptic or TelemFFB.
 
 ## Current features
 

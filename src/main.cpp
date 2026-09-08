@@ -2,6 +2,7 @@
 #include "app.hpp"
 #include "haptics.hpp"
 #include "integration.hpp"
+#include "resource.h"
 #include <imgui.h>
 #include <imgui_impl_win32.h>
 #include <imgui_impl_dx11.h>
@@ -70,10 +71,15 @@ int runWindow(HINSTANCE instance){
     if(singleton && GetLastError()==ERROR_ALREADY_EXISTS){auto other=FindWindowW(windowClass,nullptr);if(other)PostMessageW(other,showMessage,0,0);CloseHandle(singleton);return 0;}
     ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEXW wc{sizeof(wc),CS_CLASSDC,windowProc,0,0,instance,nullptr,LoadCursor(nullptr,IDC_ARROW),nullptr,nullptr,windowClass,nullptr};
-    wc.hIcon=LoadIconW(nullptr,IDI_APPLICATION);RegisterClassExW(&wc);
+    wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(IDI_APP_ICON));
+    wc.hIconSm=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(IDI_APP_ICON),IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
+    if(!wc.hIcon)wc.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
+    if(!wc.hIconSm)wc.hIconSm=wc.hIcon;
+    RegisterClassExW(&wc);
     auto window=CreateWindowW(windowClass,L"PSVR2SimShaker by Adam Chesters",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,1200,840,nullptr,nullptr,instance,nullptr);
     if(!window){if(singleton)CloseHandle(singleton);return 1;}
-    NOTIFYICONDATAW tray{sizeof(tray)};tray.hWnd=window;tray.uID=1;tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;tray.uCallbackMessage=trayMessage;tray.hIcon=wc.hIcon;
+    NOTIFYICONDATAW tray{sizeof(tray)};tray.hWnd=window;tray.uID=1;tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;tray.uCallbackMessage=trayMessage;tray.hIcon=wc.hIconSm;
     wcscpy_s(tray.szTip,L"PSVR2SimShaker — DCS headset haptics");Shell_NotifyIconW(NIM_ADD,&tray);
     hotkeyRegistered=RegisterHotKey(window,1,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,VK_SPACE)!=0;
     int result=0;

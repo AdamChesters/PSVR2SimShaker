@@ -423,7 +423,7 @@ void App::render(){
             ImGui::Text("Motor requested %d / acknowledged %d",v.requested,v.acknowledged);
             ImGui::TextWrapped("Telemetry: %s",v.source.c_str());
             if(ImGui::Button("Export diagnostic report...")){auto p=chooseFile(true,jsonFilter,L"json");if(!p.empty())try{
-                Json j={{"appVersion","0.1.0"},{"headset",v.headset},{"source",v.source},{"requested",v.requested},{"acknowledged",v.acknowledged},{"telemetry",frameJson(v.frame)},{"ageMs",v.ageMs},{"toolkitSha256",capi.empty()?"missing":sha256(capi)}};
+                Json j={{"appVersion","0.1.1"},{"headset",v.headset},{"source",v.source},{"requested",v.requested},{"acknowledged",v.acknowledged},{"telemetry",frameJson(v.frame)},{"ageMs",v.ageMs},{"toolkitSha256",capi.empty()?"missing":sha256(capi)}};
                 writeTextAtomic(p,j.dump(2));uiMessage_="Diagnostic report saved; review before sharing.";
             }catch(const std::exception& e){uiMessage_=e.what();}}
             if(ImGui::TreeNode("Live signal values")){
@@ -433,7 +433,7 @@ void App::render(){
             }
             ImGui::TextWrapped("Damage and ejection are deferred until reliable own-aircraft events are verified. Missing signals cannot trigger an effect.");
         }
-        ImGui::Dummy({0,18});mutedText("PSVR2SimShaker 0.1.0 / preview");
+        ImGui::Dummy({0,18});mutedText("PSVR2SimShaker 0.1.1 / preview");
         if(ImGui::Button("Source and credits"))ShellExecuteW(nullptr,L"open",L"https://github.com/AdamChesters/PSVR2SimShaker",nullptr,nullptr,SW_SHOWNORMAL);
         continueRow("Settings folder");if(ImGui::Button("Settings folder"))openPath(dataDirectory());
         continueRow("Exit application");if(ImGui::Button("Exit application"))PostQuitMessage(0);
@@ -458,7 +458,7 @@ void App::render(){
 }
 
 int runProbe(int motor,const fs::path& output){
-    HapticsClient client;Json report={{"appVersion","0.1.0"},{"requestedMotor",motor}};auto path=toolkitFile();
+    HapticsClient client;Json report={{"appVersion","0.1.1"},{"requestedMotor",motor}};auto path=toolkitFile();
     try{report["toolkitSha256"]=sha256(path);client.start(path);}catch(const std::exception&e){report["error"]=e.what();writeTextAtomic(output,report.dump(2));return 2;}
     const auto start=GetTickCount64();uint64_t began=0,stopSent=0;bool acknowledged=false,stopped=false;
     while(GetTickCount64()-start<10000){
