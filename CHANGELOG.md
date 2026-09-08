@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 Alpha
+
+- Compact four-column status strip, collapsing into a list in narrower windows.
+- Version status joins the connection lights: green when current, flashing yellow with yellow text when an update is available.
+- Small GitHub label beside the linked application title.
+
 ## 0.2 Alpha
 
 - Check published GitHub releases at launch, including Alpha releases, independently of haptic output.

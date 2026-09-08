@@ -43,13 +43,21 @@ bool tuningInt(const char* label,int* value,int minimum,int maximum,const char* 
 bool tuningFloat(const char* label,float* value,float minimum,float maximum,const char* format="%.2f"){
     return labeledControl(label,[&]{return ImGui::SliderFloat("##Value",value,minimum,maximum,format);});
 }
-void statusLight(const char* label,const std::string& detail,bool ready,const std::string& help){
+bool statusLight(const char* label,const std::string& detail,bool ready,const std::string& help,bool attention=false,bool tintText=false){
+    const auto color=attention?ImVec4(1.f,.78f,.30f,1):ready?ImVec4(.38f,.83f,.60f,1):ImVec4(.55f,.59f,.62f,1);
+    const auto lamp=attention&&std::fmod(ImGui::GetTime(),1.2)>=.6?ImVec4(.28f,.23f,.12f,1):color;
+    ImGui::BeginGroup();
     const auto p=ImGui::GetCursorScreenPos();const float height=ImGui::GetTextLineHeight();
-    ImGui::GetWindowDrawList()->AddCircleFilled({p.x+5,p.y+height*.5f},4,ImGui::GetColorU32(ready?ImVec4(.38f,.83f,.60f,1):ImVec4(.40f,.44f,.48f,1)));
-    ImGui::Dummy({10,height});ImGui::SameLine();ImGui::TextWrapped("%s: %s",label,detail.c_str());
+    ImGui::GetWindowDrawList()->AddCircleFilled({p.x+5,p.y+height*.5f},4,ImGui::GetColorU32(lamp));
+    ImGui::Dummy({10,height});ImGui::SameLine();
+    if(tintText)ImGui::PushStyleColor(ImGuiCol_Text,color);
+    ImGui::TextWrapped("%s: %s",label,detail.c_str());
+    if(tintText)ImGui::PopStyleColor();
+    ImGui::EndGroup();const bool clicked=ImGui::IsItemClicked();
     if(ImGui::IsItemHovered()){
         ImGui::BeginTooltip();ImGui::PushTextWrapPos(ImGui::GetFontSize()*30);ImGui::TextUnformatted(help.c_str());ImGui::PopTextWrapPos();ImGui::EndTooltip();
     }
+    return clicked;
 }
 void heading(const char* title,const char* description){
     auto& fonts=ImGui::GetIO().Fonts->Fonts;ImGui::PushFont(fonts.Size>1?fonts[1]:nullptr,34);
@@ -80,19 +88,14 @@ void App::renderUpdates(){
     const auto u=updates_.status();
     const bool available=u.release&&compareVersions(u.release->version,appVersion)>0;
     const bool busy=u.state==UpdateState::Checking||u.state==UpdateState::Downloading;
-    const auto color=u.state==UpdateState::Current?ImVec4(.38f,.83f,.60f,1):
-        available?ImVec4(1.f,.78f,.30f,1):ImVec4(.55f,.59f,.62f,1);
-    const std::string label=u.state==UpdateState::Checking?"Checking for updates...":
-        u.state==UpdateState::Downloading?"Downloading update...":
-        u.state==UpdateState::Ready?"Update ready to install":
-        available?"New version available":u.state==UpdateState::Current?
-        std::string("Current version / ")+appVersionDisplay:"Version check unavailable";
-    ImGui::PushStyleColor(ImGuiCol_Text,color);ImGui::TextUnformatted(label.c_str());ImGui::PopStyleColor();
-    if(ImGui::IsItemHovered()){
-        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        ImGui::SetTooltip("Installed: %s\nClick for release details and updates",appVersionDisplay);
-    }
-    if(ImGui::IsItemClicked())ImGui::OpenPopup("Application updates");
+    const char* state=u.state==UpdateState::Checking?"checking":u.state==UpdateState::Downloading?"downloading":
+        u.state==UpdateState::Ready?"ready to install":available?"update":
+        u.state==UpdateState::Current?"current":"check unavailable";
+    const auto detail=std::string(appVersionDisplay)+" / "+state;
+    if(statusLight("Version",detail,u.state==UpdateState::Current,
+        "Click for release details and updates. A flashing yellow light means a newer release is available; grey means the version could not be checked.",available,true))
+        ImGui::OpenPopup("Application updates");
+    if(ImGui::IsItemHovered())ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     auto install=[&]{
         updateInstallRequested_=false;
         try{
@@ -248,6 +251,7 @@ void App::render(){
         ImGui::TableNextColumn();ImGui::BeginGroup();
         auto& fonts=ImGui::GetIO().Fonts->Fonts;ImGui::PushFont(fonts.Size>1?fonts[1]:nullptr,34);
         ImGui::TextColored({.35f,.73f,.84f,1},"PSVR2SimShaker");ImGui::PopFont();
+        ImGui::SameLine(0,10);ImGui::PushFont(nullptr,16);ImGui::TextColored({.35f,.73f,.84f,1},"(GitHub)");ImGui::PopFont();
         ImGui::PushFont(nullptr,20);ImGui::TextUnformatted("by Adam Chesters");ImGui::PopFont();ImGui::EndGroup();
         if(ImGui::IsItemHovered()){ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);ImGui::SetTooltip("Open PSVR2SimShaker on GitHub");}
         if(ImGui::IsItemClicked())ShellExecuteW(nullptr,L"open",L"https://github.com/AdamChesters/PSVR2SimShaker",nullptr,nullptr,SW_SHOWNORMAL);
@@ -257,18 +261,20 @@ void App::render(){
             ImGui::PushStyleColor(ImGuiCol_Button,page_==i?ImVec4(.14f,.29f,.34f,1):ImVec4(.055f,.07f,.08f,1));
             if(ImGui::Button(pages[i],{100,38}))page_=i;ImGui::PopStyleColor();
         }
-        renderUpdates();
         ImGui::TableNextColumn();ImGui::PushStyleColor(ImGuiCol_Button,{.29f,.12f,.13f,1});
         if(ImGui::Button("STOP",{108,38})){emergencyStop();s.muted=true;changed=true;}ImGui::PopStyleColor();
         if(ImGui::IsItemHovered())ImGui::SetTooltip("Stop and mute all output. Ctrl + Alt + Space.");ImGui::EndTable();
     }
     ImGui::Spacing();
-    if(ImGui::BeginTable("ConnectionLights",3,ImGuiTableFlags_SizingStretchSame)){
+    const float statusWidth=ImGui::GetContentRegionAvail().x;
+    const bool statusList=statusWidth<980.f;
+    if(ImGui::BeginTable("ConnectionLights",statusList?1:4,ImGuiTableFlags_SizingStretchSame,{std::min(statusWidth,980.f),0})){
         ImGui::TableNextColumn();const auto hook=installedHooks_?(installedHooks_==hookProfiles_?std::string("Installed"):std::to_string(installedHooks_)+"/"+std::to_string(hookProfiles_)+" profiles"):"Not installed";
         statusLight("DCS hook",hook,installedHooks_>0,hookDetail_);
         ImGui::TableNextColumn();statusLight("DCS telemetry",v.flight.telemetryLive?"Live":"Waiting / paused",v.flight.telemetryLive,"Lights when real shared-memory telemetry has an advancing DCS clock. Tests do not change this light.");
         ImGui::TableNextColumn();const auto aircraft=v.flight.aircraftLive?(v.flight.supported?std::string("Live / Hornet"):std::string("Live / unsupported")):"Waiting";
         statusLight("Aircraft",aircraft,v.flight.aircraftLive,"Requires aircraft identity and numeric signals in the live DCS feed. Individual effects still depend on their own signals. Aircraft: "+(v.flight.aircraft.empty()?std::string("none"):v.flight.aircraft));
+        ImGui::TableNextColumn();renderUpdates();
         ImGui::EndTable();
     }
     ImGui::Separator();ImGui::Spacing();
