@@ -16,7 +16,8 @@ const EffectDefinition& effectDefinition(size_t i){
         {CueShape::Continuous,false,"Optional subtle RPM ambience for people without seat or stick haptics. Off by default. Smooth intensity follows RPM; the headset cannot reproduce individual engine harmonics."},
         {CueShape::Impact,true,"A quick pulse when flare or chaff count falls. A short quiet recovery separates cues; fast dispense programs coalesce rather than commanding a pulse for every cartridge. Rearm and missing counts do not trigger output."},
         {CueShape::Continuous,true,"Subtle airflow rumble from airborne gear/speedbrake deployment and airspeed. It approximates configuration drag, not measured turbulence. Gear-mechanism quiet gaps take priority."},
-        {CueShape::Unavailable,false,"Deferred: damage animation changes are not reliable individual hit events. Damage and ejection need validated own-aircraft event detection before headset output is enabled."}
+        {CueShape::Unavailable,false,"Deferred: damage animation changes are not reliable individual hit events. Damage and ejection need validated own-aircraft event detection before headset output is enabled."},
+        {CueShape::Continuous,true,"A sustained low rumble while either engine is in afterburner. Strength follows the stronger engine's afterburner signal. Tune it separately from the ignition kick and normal engine ambience; higher-priority cues can take over."}
     }};
     return definitions.at(i);
 }
@@ -61,7 +62,7 @@ FlightFeedStatus FlightFeed::status(uint64_t now,int staleMs)const{
 Settings::Settings() {
     effects[Gun].priority=90; effects[Gun].releaseMs=100; effects[Gun].gain=1;
     effects[Touchdown].priority=100; effects[Touchdown].releaseMs=250;
-    effects[Buffet].priority=65; effects[Buffet].threshold=.025f;
+    effects[Buffet].priority=25; effects[Buffet].threshold=.025f;
     effects[Taxi].priority=15; effects[Taxi].gain=.25f; effects[Taxi].threshold=.02f;
     effects[Gear].priority=45; effects[Afterburner].priority=60;
     effects[Stores].priority=80; effects[Stores].enabled=false;
@@ -87,9 +88,10 @@ Settings::Settings() {
     effects[Countermeasures].enabled=true;effects[Countermeasures].gain=1;effects[Countermeasures].threshold=0;effects[Countermeasures].attackMs=0;effects[Countermeasures].releaseMs=20;effects[Countermeasures].holdMs=140;effects[Countermeasures].settleMs=0;effects[Countermeasures].coastMs=260;effects[Countermeasures].cooldownMs=400;
     effects[Airflow].enabled=true;effects[Airflow].motorMin=11;effects[Airflow].motorMax=13;effects[Airflow].gain=1;effects[Airflow].attackMs=180;effects[Airflow].releaseMs=120;effects[Airflow].settleMs=320;effects[Airflow].coastMs=0;
     effects[Engine].motorMin=10;effects[Engine].motorMax=12;effects[Engine].gain=.7f;effects[Engine].attackMs=400;effects[Engine].releaseMs=160;effects[Engine].settleMs=450;effects[Engine].coastMs=0;
+    effects[AfterburnerRumble].motorMin=12;effects[AfterburnerRumble].motorMax=16;effects[AfterburnerRumble].gain=1;effects[AfterburnerRumble].threshold=0;effects[AfterburnerRumble].priority=30;effects[AfterburnerRumble].attackMs=250;effects[AfterburnerRumble].releaseMs=120;effects[AfterburnerRumble].settleMs=300;effects[AfterburnerRumble].coastMs=0;
 }
 Json Settings::json() const {
-    Json j={{"version",1},{"profile",profile},{"muted",muted},
+    Json j={{"version",1},{"mixRevision",1},{"profile",profile},{"muted",muted},
         {"master",master},{"motorFloor",motorFloor},{"motorCap",motorCap},{"motorCurve",motorCurve},{"staleMs",staleMs},{"dcsProfiles",dcsProfiles},{"toolkitPath",toolkitPath},
         {"gearStartMs",gearStartMs},{"gearLockMs",gearLockMs},{"gearDemoSeconds",gearDemoSeconds},
         {"gearStartGapMs",gearStartGapMs},{"gearLockGapMs",gearLockGapMs},{"gearRampMs",gearRampMs}};
@@ -130,7 +132,10 @@ Settings Settings::fromJson(const Json& j) {
         e.settleMs=std::clamp(v.value("settleMs",e.settleMs),0,1000);
         e.coastMs=std::clamp(v.value("coastMs",e.coastMs),0,1500);
         e.cooldownMs=std::clamp(v.value("cooldownMs",e.cooldownMs),0,3000);
-    } return s;
+    }
+    // Migrate the old default once, without repeatedly overriding user tuning.
+    if(j.value("mixRevision",0)<1 && s.effects[Buffet].priority==65)s.effects[Buffet].priority=Settings{}.effects[Buffet].priority;
+    return s;
 }
 int mapMotor(float level,int minimum,int maximum,int cap,float curve) {
     if(!std::isfinite(level) || level<=.015f) return 0;
@@ -214,13 +219,15 @@ void EffectEngine::ingest(const Frame& f,uint64_t now,int maxGapMs) {
         }else if(gearMoving_ && now-gearChanged_>300)gearMoving_=false;
     }else{gearMoving_=false;gearLockedAt_=0;}
     auto ab=val("ab_left"),ab2=val("ab_right");
-    available_[Afterburner]=ab && ab2;
+    available_[Afterburner]=available_[AfterburnerRumble]=ab && ab2;
+    targets_[AfterburnerRumble]=0;
     if(ab && ab2) {
         const auto amount=std::max(*ab,*ab2);
         if(!prev("ab_left") || !prev("ab_right"))afterburnerOn_=amount>.05;
         else if(!afterburnerOn_ && amount>.15){trigger(Afterburner,now,1.f);afterburnerOn_=true;}
         else if(amount<.05)afterburnerOn_=false;
-    }
+        if(afterburnerOn_)targets_[AfterburnerRumble]=float(std::clamp(amount,0.,1.));
+    }else afterburnerOn_=false;
     available_[Stores]=val("stores_count") && ground; if(ground && *ground<.5 && drop("stores_count")) trigger(Stores,now,1.f);
     auto rpm=val("rpm_left_pct"),rpm2=val("rpm_right_pct"); available_[Engine]=rpm && rpm2;
     targets_[Engine]=rpm && rpm2 ? float(std::clamp((std::max(*rpm,*rpm2)-40)/60,0.,1.)) : 0;
@@ -328,7 +335,7 @@ std::vector<FlightDemoStage> flightDemoStages(const Settings& s){
     add(FlightDemoStep::Gunfire,1.2+tail(Gun),"Gun burst","Sustained firing, then a short settle and quiet recovery.");
     add(FlightDemoStep::Buffet,3+s.effects[Buffet].settleMs/1000.,"Airborne buffet","A rising and falling airframe shake.");
     add(FlightDemoStep::Airbrake,3+s.effects[Airflow].settleMs/1000.,"Airbrake airflow","Subtle airflow with the speedbrake extended.");
-    add(FlightDemoStep::Afterburner,tail(Afterburner),"Afterburner ignition","A firm kick, softer rumble, then quiet recovery.");
+    add(FlightDemoStep::Afterburner,4+tail(Afterburner),"Afterburner","Ignition kick and recovery, then sustained rumble while engaged.");
     add(FlightDemoStep::Stores,tail(Stores),"Store release","One sharp release pulse.");
     add(FlightDemoStep::Countermeasures,tail(Countermeasures),"Countermeasures","One short dispense pulse.");
     add(FlightDemoStep::GearDown,gearDuration,"Approach / gear down","The same mechanism rhythm, with subtle gear airflow.");
@@ -367,6 +374,7 @@ Frame effectDemoFrame(size_t i,double t,uint64_t now){
     case Buffet:f.values={{"on_ground",0},{"shake",bed*(.55+.18*std::sin(t*6))}};break;
     case Taxi:f.values={{"on_ground",1},{"ground_mps",t<3.3?20:0},{"accel_y_g",1+bed*.3*std::sin(t*11)}};break;
     case Afterburner:f.values={{"ab_left",t<.4?0:.6},{"ab_right",t<.55?0:.6}};break;
+    case AfterburnerRumble:f.values={{"ab_left",t>=.4&&t<3.3?.2+.8*bed:0},{"ab_right",t>=.55&&t<3.3?.2+.7*bed:0}};break;
     case Stores:f.values={{"on_ground",0},{"stores_count",t<.4?4:3}};break;
     case Countermeasures:f.values={{"flares",t<.4?30:t<.55?29:28},{"chaff",60}};break;
     case Engine:f.values={{"rpm_left_pct",40+bed*60},{"rpm_right_pct",40+bed*57}};break;

@@ -55,7 +55,7 @@ static void flightDemoTests(){
             if(mix.dominant==Gear&&mix.effects[Gear].reason.find("quiet")!=std::string::npos)CHECK(mix.motor==0);
         }
         CHECK(gearStarts==2&&gearLocks==2);
-        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Buffet),size_t(Airflow),size_t(Afterburner),size_t(Stores),size_t(Countermeasures),size_t(Touchdown)})CHECK(felt[i]);
+        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Buffet),size_t(Airflow),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Touchdown)})CHECK(felt[i]);
         CHECK(!felt[Engine]&&!felt[Taxi]&&!felt[Damage]);CHECK(engine.tick(50000+uint64_t(duration*1000)+400,s).motor==0);
         for(auto& cue:s.effects)cue.enabled=false;engine.reset();
         for(int n=0;n*.02<duration;++n){const auto now=uint64_t(150000+n*20);engine.ingest(flightDemoFrame(n*.02,now,stages,travel),now);CHECK(engine.tick(now,s).motor==0);}
@@ -86,6 +86,80 @@ static void parseTests(){
         CHECK(saved.at("effects")==legacy.at("effects")&&migrated.gearDemoSeconds==reference.gearDemoSeconds);
     }
     j["effects"]["gun"]["releaseMs"]="broken";bool rejected=false;try{Settings::fromJson(j);}catch(...){rejected=true;}CHECK(rejected);
+}
+static void sustainedTests(){
+    // Upgrading adds the new cue without replacing existing per-effect tuning.
+    Settings custom;custom.effects[Gear].motorMax=24;custom.effects[Countermeasures].motorMax=19;
+    auto legacy=custom.json();legacy["effects"].erase("afterburner_rumble");
+    auto migrated=Settings::fromJson(legacy);auto saved=migrated.json();
+    CHECK(migrated.effects[AfterburnerRumble].enabled);
+    for(auto it=legacy["effects"].begin();it!=legacy["effects"].end();++it)CHECK(saved["effects"][it.key()]==it.value());
+    migrated.effects[AfterburnerRumble].enabled=false;migrated.effects[AfterburnerRumble].motorMax=18;
+    auto roundTrip=Settings::fromJson(migrated.json());CHECK(!roundTrip.effects[AfterburnerRumble].enabled&&roundTrip.effects[AfterburnerRumble].motorMax==18);
+
+    Settings s;EffectEngine engine;Frame f;f.state="flying";f.aircraft="FA-18C_hornet";f.session=5;
+    int ignitionStarts=0;bool wasIgnition=false;
+    for(int n=0;n<1500;++n){
+        const auto now=uint64_t(1000+n*20);f.sequence=n+1;f.simTime=n*.02;
+        f.values={{"ab_left",n<5?0:.6},{"ab_right",n<10?0:.8},{"cannon_rounds",n<250?500:490}};
+        engine.ingest(f,now);auto mix=engine.tick(now,s);
+        const bool ignition=mix.effects[Afterburner].reason=="Ignition kick";
+        if(ignition&&!wasIgnition)++ignitionStarts;wasIgnition=ignition;
+        if((n>100&&n<240) || n>300){CHECK(mix.dominant==AfterburnerRumble);CHECK(mix.motor>=12&&mix.motor<=16);}
+        if(n==251)CHECK(mix.dominant==Gun&&mix.motor==25);
+    }
+    CHECK(ignitionStarts==1); // The second engine and steady AB must not keep firing ignition kicks.
+    const uint64_t now=31000;
+    auto stale=engine;CHECK(stale.tick(now+400,s).motor==0);
+    auto disabled=s;disabled.effects[AfterburnerRumble].enabled=false;CHECK(engine.tick(now,disabled).motor==0);
+    auto zeroMaster=s;zeroMaster.master=0;CHECK(engine.tick(now,zeroMaster).motor==0);
+    // Losing either required engine signal stops immediately; return is a fresh ignition baseline.
+    f.sequence++;f.simTime+=.02;f.values.erase("ab_right");engine.ingest(f,now);CHECK(engine.tick(now,s).motor==0);
+    f.sequence++;f.simTime+=.02;f.values["ab_right"]=.8;engine.ingest(f,now+20);
+    CHECK(engine.tick(now+20,s).effects[Afterburner].level==0);
+    // A new session already in AB gets ongoing rumble without an invented onset.
+    f.session++;f.sequence=1;f.simTime=0;engine.ingest(f,now+40);
+    CHECK(engine.tick(now+40,s).effects[Afterburner].level==0);
+    // Leaving AB has a bounded fade, independent of normal engine ambience.
+    for(int n=0;n<40;++n){f.sequence++;f.simTime+=.02;f.values["ab_left"]=f.values["ab_right"]=0;
+        engine.ingest(f,now+60+n*20);auto mix=engine.tick(now+60+n*20,s);if(n>=16)CHECK(mix.motor==0);}
+    // Gear and speedbrake airflow both persist beyond their deployment, until contact or missing data.
+    for(const char* deployed:{"gear","airbrake"}){
+        engine.reset();auto airflow=s;for(size_t i=0;i<effectCount;++i)airflow.effects[i].enabled=i==Airflow;
+        f.values={{"on_ground",0},{"ias_mps",80},{deployed,1}};f.session++;
+        for(int n=0;n<500;++n){f.sequence=n+1;f.simTime=n*.02;engine.ingest(f,40000+n*20);auto mix=engine.tick(40000+n*20,airflow);
+            if(n>20)CHECK(mix.dominant==Airflow&&mix.motor>=11&&mix.motor<=13);}
+        f.values["shake"]=1;f.sequence++;f.simTime+=.02;engine.ingest(f,50000);auto mix=engine.tick(50000,s);
+        CHECK(mix.dominant==Airflow&&mix.effects[Buffet].reason=="Background suppressed");
+        f.values["on_ground"]=1;
+        for(int n=0;n<30;++n){f.sequence++;f.simTime+=.02;engine.ingest(f,50020+n*20);mix=engine.tick(50020+n*20,airflow);if(n>=17)CHECK(mix.motor==0);}
+        f.values.erase("ias_mps");f.sequence++;f.simTime+=.02;engine.ingest(f,50620);mix=engine.tick(50620,airflow);
+        CHECK(!mix.effects[Airflow].available&&mix.motor==0);
+    }
+}
+static void buffetPriorityTests(){
+    Settings s;CHECK(s.effects[Buffet].enabled&&s.effects[Buffet].priority==25);
+    auto legacy=s.json();legacy.erase("mixRevision");legacy["effects"]["buffet"]["priority"]=65;
+    legacy["effects"]["gear"]["motorMax"]=24;legacy["effects"]["countermeasures"]["motorMax"]=19;
+    auto migrated=Settings::fromJson(legacy).json();auto expected=legacy;
+    expected["mixRevision"]=1;expected["effects"]["buffet"]["priority"]=25;CHECK(migrated==expected);
+    legacy["effects"]["buffet"]["priority"]=42;CHECK(Settings::fromJson(legacy).effects[Buffet].priority==42);
+    migrated["effects"]["buffet"]["priority"]=65;CHECK(Settings::fromJson(migrated).effects[Buffet].priority==65);
+    // Strong continuous buffet must yield to each flight cue, including its quiet recovery.
+    for(size_t cue:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Airflow)}){
+        auto isolated=s;for(size_t i=0;i<effectCount;++i)isolated.effects[i].enabled=i==Buffet||i==cue;
+        EffectEngine engine;bool tookOver=false;
+        for(int n=0;n*.02<effectDemoDuration(cue,isolated);++n){
+            const double t=n*.02;const auto now=uint64_t(200000+n*20);
+            auto f=cue==Gear?gearDemoFrame(t,now,isolated.gearDemoSeconds,gearDemoRestSeconds(isolated)):effectDemoFrame(cue,t,now);
+            if(cue!=Touchdown)f.values["on_ground"]=0;f.values["shake"]=1;
+            engine.ingest(f,now);auto mix=engine.tick(now,isolated);
+            const auto& activity=mix.effects[cue];
+            if(activity.level>=.02f){CHECK(mix.dominant==int(cue));tookOver=true;}
+            if(activity.reason.find("quiet")!=std::string::npos)CHECK(mix.dominant==int(cue)&&mix.motor==0);
+        }
+        CHECK(tookOver);
+    }
 }
 static void engineTests(){
     Settings s;for(auto& e:s.effects){e.enabled=true;e.attackMs=0;e.threshold=0;e.gain=1;}s.master=1;
@@ -216,4 +290,4 @@ static void integrationTests(){
     for(const auto& name:{L"profile/Scripts/Export.lua",L"profile/Scripts/Export.lua.before-PSVR2SimShaker",L"source/dcs/Export.lua",L"source/PSVR2SimShakerDcsBridge.dll"})fs::remove(root/name);
     for(const auto& name:{L"profile/Scripts",L"profile/Config",L"profile",L"source/dcs",L"source"})fs::remove(root/name);fs::remove(root);
 }
-int main(){try{parseTests();flightFeedTests();engineTests();gearTests();cueTests();flightDemoTests();integrationTests();std::cout<<"PASS: profile migration, real-feed status, demo timeline, event transitions, gear rhythm, effect envelopes, stop/recovery, mixer and export integration\n";return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{parseTests();flightFeedTests();engineTests();gearTests();cueTests();flightDemoTests();sustainedTests();buffetPriorityTests();integrationTests();std::cout<<"PASS: profile migration, real-feed status, demo timeline, event transitions, sustained afterburner/airflow, gear rhythm, effect envelopes, stop/recovery, buffet priority and export integration\n";return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

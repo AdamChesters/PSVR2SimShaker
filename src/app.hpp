@@ -1,6 +1,7 @@
 #pragma once
 #include "core.hpp"
 #include "platform.hpp"
+#include "updates.hpp"
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -25,6 +26,9 @@ class App {
     Snapshot snapshot_;
     std::vector<Command> commands_;
     std::jthread worker_;
+    UpdateClient updates_;
+    bool updateInstallRequested_=false;
+    std::string updateLaunchError_;
     int page_=0,selectedEffect_=0,testMotor_=15,calibrationLow_=10,calibrationHigh_=18;
     std::array<bool,effectCount> expanded_{};
     bool settingsDirty_=false,showTimeline_=true;
@@ -36,6 +40,7 @@ class App {
     std::vector<fs::path> profiles_;
     void run(std::stop_token stop);
     void save();
+    void renderUpdates();
 public:
     App();
     ~App();

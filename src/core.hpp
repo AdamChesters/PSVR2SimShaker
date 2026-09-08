@@ -9,12 +9,12 @@
 
 namespace shaker {
 using Json = nlohmann::json;
-inline constexpr size_t effectCount = 11;
-enum EffectId : size_t { Buffet, Gun, Touchdown, Taxi, Gear, Afterburner, Stores, Engine, Countermeasures, Airflow, Damage };
+inline constexpr size_t effectCount = 12;
+enum EffectId : size_t { Buffet, Gun, Touchdown, Taxi, Gear, Afterburner, Stores, Engine, Countermeasures, Airflow, Damage, AfterburnerRumble };
 inline constexpr std::array<const char*, effectCount> effectNames = {
-    "Airborne buffet", "Gun burst", "Touchdown", "Runway bumps", "Gear up / down", "Afterburner onset", "Store release", "Engine ambience", "Countermeasures", "Gear / brake airflow", "Damage impact"};
+    "Airborne buffet", "Gun burst", "Touchdown", "Runway bumps", "Gear up / down", "Afterburner onset", "Store release", "Engine ambience", "Countermeasures", "Gear / brake airflow", "Damage impact", "Afterburner rumble"};
 inline constexpr std::array<const char*, effectCount> effectKeys = {
-    "buffet","gun","touchdown","taxi","gear","afterburner","stores","engine","countermeasures","airflow","damage"};
+    "buffet","gun","touchdown","taxi","gear","afterburner","stores","engine","countermeasures","airflow","damage","afterburner_rumble"};
 struct Frame {
     uint64_t session = 0, sequence = 0, receivedMs = 0;
     double simTime = 0;

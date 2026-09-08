@@ -1,3 +1,30 @@
 #include "@CMAKE_CURRENT_SOURCE_DIR@/src/resource.h"
+#include <winver.h>
 
 IDI_APP_ICON ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/PSVR2SimShaker.ico"
+
+1 VERSIONINFO
+FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS VS_FF_PRERELEASE
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Adam Chesters"
+            VALUE "FileDescription", "PSVR2SimShaker @PSVR2SIMSHAKER_DISPLAY_VERSION@"
+            VALUE "FileVersion", "@PSVR2SIMSHAKER_VERSION@"
+            VALUE "ProductName", "PSVR2SimShaker"
+            VALUE "ProductVersion", "@PSVR2SIMSHAKER_VERSION@"
+            VALUE "OriginalFilename", "PSVR2SimShaker.exe"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

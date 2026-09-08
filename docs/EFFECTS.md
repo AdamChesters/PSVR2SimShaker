@@ -20,6 +20,7 @@ Numbers below assume master 100%, curve 1 and ceiling 25. A range is the availab
 | Gun burst | On | 20–25 while ammunition falls; 180 ms hold after the last observed decrease, 60 ms settle, 300 ms quiet recovery | A sustained firing cue, since individual rounds arrive too quickly for separate motor pulses. |
 | Touchdown | On | 15–25, 220 ms hit, 140 ms settle, 350 ms quiet recovery | Descending contact after at least 500 ms airborne, with a 1.1 s cooldown. Severity uses pre-contact vertical speed. Carrier-relative velocity is unavailable. |
 | Afterburner onset | On | Kick at 21 for 180 ms, then roughly 14–16 rumble fading over 700 ms; 350 ms quiet | Engagement of either engine gives one combined cue. Hysteresis plus 1.4 s cooldown prevents repeated throttle chatter. Joining a flight already in AB gives no invented ignition. |
+| Afterburner rumble | On | Continuous 12–16; 250 ms attack, 120 ms release, stop fade capped at 300 ms | Follows the stronger afterburner signal while either engine remains engaged. Independent of the onset cue and normal engine ambience. |
 | Store release | On | Sharp 160 ms pulse at 20, then 280 ms quiet | Falling airborne store count. Includes jettison; does not identify a weapon or prove a successful launch. |
 | Countermeasures | On | Sharp 140 ms pulse at 15, then 260 ms quiet | Falling flare or chaff count. Rapid releases coalesce into bounded cues rather than queue. |
 | Airborne buffet | On | 12–18, 80 ms attack / 120 ms release; stop fade capped at 260 ms | General DCS shake while airborne. Useful airframe feedback, not an isolated stall or G-force warning. |
@@ -32,12 +33,18 @@ Store and countermeasure events arriving during their hit/recovery are consumed,
 
 ## Inertia and mixing
 
-Impact and ignition cues have explicit finite envelopes followed by zero-command recovery. Software smoothing cannot fill these zero intervals. Lower-priority continuous cues also cannot fill a higher-priority cue's recovery; an urgent cue can still interrupt it. Priorities are touchdown 100, gun 90, stores 80, buffet 65, AB 60, countermeasures 50, gear 45, airflow 35, runway 15 and engine 5.
+Impact and ignition cues have explicit finite envelopes followed by zero-command recovery. Software smoothing cannot fill these zero intervals. Lower-priority continuous cues also cannot fill a higher-priority cue's recovery; an urgent cue can still interrupt it. Priorities are touchdown 100, gun 90, stores 80, AB onset 60, countermeasures 50, gear 45, airflow 35, sustained AB 30, buffet 25, runway 15 and engine 5.
 
 Continuous effects receive smoothing and bounded stop fades, rather than repeated gear-like impacts. The engine selects one dominant cue; it does not add motor frequencies or sum every effect into saturation. These defaults accommodate perceived inertia without claiming measured spin-up, braking or inverse physical compensation.
 
+For gear/brake airflow, deployment must be nonzero, the aircraft must be airborne, and indicated airspeed must exceed 40 m/s (about 78 knots). Intensity rises with deployment and speed. It remains active after deployment finishes; full deployment reaches its maximum input at 140 m/s (about 272 knots). Partial deployment gives less input, and the response threshold may suppress very low input.
+
+If raising a cue's strength makes no difference, open **Tune → Command preview and activity** during flight. **Background suppressed** means another cue has priority; **Below threshold** means its signal is too low. Airborne buffet yields to gear, countermeasures, afterburner and configuration airflow. It remains available in otherwise quiet flight; a stronger signal does not override another effect's higher priority.
+
+Afterburner rumble follows the current engine signal, so joining or reconnecting during afterburner can resume the rumble without inventing an ignition kick. The onset cue's quiet recovery still takes priority before sustained rumble is heard. Leaving afterburner fades the rumble; missing signals or stale telemetry stop it.
+
 ## Profiles and gear preset
 
-Settings save automatically. **Settings → Profiles and presets → Apply default headset mix** applies the flight-cue defaults while keeping your gear tuning, demo travel, Master, ceiling and response curve. Profile import fits effect ranges to your local headset range.
+Settings save automatically. Profiles using the original buffet priority of 65 migrate to 25 once when upgrading to 0.2 Alpha. Other priority values and effect strength settings are preserved. After migration, deliberate priority changes are retained, including a return to 65. **Settings → Profiles and presets → Apply default headset mix** applies the flight-cue defaults while keeping your gear tuning, demo travel, Master, ceiling and response curve. Profile import fits effect ranges to your local headset range.
 
 **Apply gear preset** updates the gear cue with a start hit, quiet gap, rising travel rumble, coast and endpoint hit. It selects 4.8 seconds of demo travel per direction; you can set this from three to fifteen seconds. This controls the audition only. Live gear timing follows DCS telemetry.

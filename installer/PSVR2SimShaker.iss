@@ -1,5 +1,11 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.1"
+  #define AppVersion "0.2.0-alpha"
+#endif
+#ifndef AppNumericVersion
+  #define AppNumericVersion "0.2.0"
+#endif
+#ifndef AppDisplayVersion
+  #define AppDisplayVersion "0.2 Alpha"
 #endif
 #ifndef PackageDir
   #define PackageDir "..\dist\package"
@@ -8,6 +14,10 @@
 AppId={{1051BB21-1FCD-4EDC-B2B6-813B730DDB73}
 AppName=PSVR2SimShaker
 AppVersion={#AppVersion}
+AppVerName=PSVR2SimShaker {#AppDisplayVersion}
+VersionInfoVersion={#AppNumericVersion}
+VersionInfoProductVersion={#AppNumericVersion}
+VersionInfoProductTextVersion={#AppVersion}
 AppPublisher=Adam Chesters
 AppPublisherURL=https://github.com/AdamChesters/PSVR2SimShaker
 AppSupportURL=https://github.com/AdamChesters/PSVR2SimShaker/issues
