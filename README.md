@@ -1,5 +1,9 @@
 # PSVR2SimShaker
 
+Want your vision/head to literally shake when you fire the glorious F/A-18C M61A1 Vulcan 20mm six-barreled rotary cannon? 
+
+I gotchu. 
+
 <img src="assets/PSVR2SimShaker.png" alt="SimShaker S and vibration ripples" width="96" height="96">
 
 Leverage DCS World haptics for the Playstation VR2 (PSVR2) headset on PC, by Adam Chesters.
