@@ -1,0 +1,34 @@
+name: Windows build and tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure compiler and dependencies
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $env:VCPKG_ROOT) { throw 'The Windows runner must provide vcpkg' }
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static
+          if ($LASTEXITCODE -ne 0) { throw 'Configure failed' }
+          cmake --build build --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+          ctest --test-dir build --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          cmake --install build --prefix dist/package
+          if ($LASTEXITCODE -ne 0) { throw 'Staging failed' }
+          Compress-Archive -Path dist/package/* -DestinationPath dist/PSVR2SimShaker-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-x64-preview
+          path: dist/PSVR2SimShaker-Windows-x64.zip
