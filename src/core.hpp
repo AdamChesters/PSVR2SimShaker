@@ -9,12 +9,12 @@
 
 namespace shaker {
 using Json = nlohmann::json;
-inline constexpr size_t effectCount = 12;
-enum EffectId : size_t { Buffet, Gun, Touchdown, Taxi, Gear, Afterburner, Stores, Engine, Countermeasures, Airflow, Damage, AfterburnerRumble };
+inline constexpr size_t effectCount = 13;
+enum EffectId : size_t { Buffet, Gun, Touchdown, Taxi, Gear, Afterburner, Stores, Engine, Countermeasures, Airflow, Damage, AfterburnerRumble, Catapult };
 inline constexpr std::array<const char*, effectCount> effectNames = {
-    "Airborne buffet", "Gun burst", "Touchdown", "Runway bumps", "Gear up / down", "Afterburner onset", "Store release", "Engine ambience", "Countermeasures", "Gear / brake airflow", "Damage impact", "Afterburner rumble"};
+    "Airborne buffet", "Gun burst", "Touchdown", "Runway bumps", "Gear up / down", "Afterburner onset", "Store release", "Engine ambience", "Countermeasures", "Gear / brake airflow", "Damage impact", "Afterburner rumble", "Catapult launch"};
 inline constexpr std::array<const char*, effectCount> effectKeys = {
-    "buffet","gun","touchdown","taxi","gear","afterburner","stores","engine","countermeasures","airflow","damage","afterburner_rumble"};
+    "buffet","gun","touchdown","taxi","gear","afterburner","stores","engine","countermeasures","airflow","damage","afterburner_rumble","catapult"};
 struct Frame {
     uint64_t session = 0, sequence = 0, receivedMs = 0;
     double simTime = 0;
@@ -47,6 +47,15 @@ enum class CueShape { Continuous, Burst, Impact, Surge, Mechanism, Unavailable }
 struct EffectDefinition { CueShape shape; bool recommended; const char* description; };
 const EffectDefinition& effectDefinition(size_t effect);
 bool effectSupported(size_t effect);
+struct AircraftProfile {
+    const char* id;
+    const char* name;
+    int engines;
+    bool afterburner, helicopter, carrier;
+};
+const std::array<AircraftProfile,6>& aircraftProfiles();
+const AircraftProfile* aircraftProfile(const std::string& aircraft);
+const AircraftProfile* profileById(const std::string& id);
 struct Settings {
     std::string profile = "Hornet - Headset essentials";
     bool muted = false;
@@ -58,7 +67,10 @@ struct Settings {
     std::array<EffectConfig,effectCount> effects;
     std::vector<std::string> dcsProfiles;
     std::string toolkitPath;
+    std::string activeAircraft = "hornet";
+    std::map<std::string,Json> aircraftTuning;
     Settings();
+    bool selectAircraft(const std::string& id);
     Json json() const;
     static Settings fromJson(const Json& j);
 };
@@ -86,6 +98,8 @@ class EffectEngine {
     int gearDirection_ = 0;
     uint64_t gearBegan_ = 0, gearChanged_ = 0, gearLockedAt_ = 0;
     uint64_t airborneAt_ = 0;
+    uint64_t catapultArmedAt_=0, catapultAccelAt_=0, catapultStart_=0;
+    bool catapultSpent_=false, catapultReady_=false;
     std::optional<double> taxiBaseline_;
 public:
     void reset();

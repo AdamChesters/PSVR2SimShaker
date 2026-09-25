@@ -4,11 +4,42 @@
 #include <stdexcept>
 
 namespace shaker {
+const std::array<AircraftProfile,6>& aircraftProfiles(){
+    static const std::array<AircraftProfile,6> profiles={{
+        {"hornet","F/A-18C Hornet",2,true,false,true},
+        {"viper","F-16C Viper",1,true,false,false},
+        {"warthog","A-10C / A-10C II",2,false,false,false},
+        {"tomcat","F-14A/B Tomcat",2,true,false,true},
+        {"phantom","F-4E Phantom",2,true,false,false},
+        {"apache","AH-64D Apache",2,false,true,false}
+    }};
+    return profiles;
+}
+const AircraftProfile* profileById(const std::string& id){
+    for(const auto& p:aircraftProfiles())if(id==p.id)return &p;
+    return nullptr;
+}
+const AircraftProfile* aircraftProfile(const std::string& aircraft){
+    const char* id=nullptr;
+    if(aircraft=="FA-18C_hornet")id="hornet";
+    else if(aircraft=="F-16C_50")id="viper";
+    else if(aircraft=="A-10C" || aircraft=="A-10C_2")id="warthog";
+    else if(aircraft=="F-14B" || aircraft=="F-14A-135-GR" || aircraft=="F-14A-95-GR")id="tomcat";
+    else if(aircraft=="F-4E-45MC")id="phantom";
+    else if(aircraft=="AH-64D_BLK_II")id="apache";
+    return id?profileById(id):nullptr;
+}
+static Json tuning(const Json& j){
+    Json result=Json::object();
+    for(const auto* key:{"profile","mixRevision","master","effects","gearStartMs","gearLockMs","gearStartGapMs","gearLockGapMs","gearRampMs","gearDemoSeconds"})
+        if(j.contains(key))result[key]=j[key];
+    return result;
+}
 const EffectDefinition& effectDefinition(size_t i){
     static const std::array<EffectDefinition,effectCount> definitions={{
         {CueShape::Continuous,true,"Smooth airborne airframe shake. DCS supplies a general shake signal, not an isolated stall warning or a G-force measurement. Suppressed on the ground and behind higher-priority impacts."},
         {CueShape::Burst,true,"One sustained rumble while cannon ammunition falls, followed by a short settle and quiet coast. Individual rounds are too fast for separate headset pulses. Unlimited-ammunition missions may not provide this signal."},
-        {CueShape::Impact,true,"A landing thud followed by a brief settle and quiet coast. Requires established flight and a descending contact; wheel-contact chatter cannot repeatedly trigger it. Severity uses vertical speed, without carrier deck-relative correction."},
+        {CueShape::Impact,true,"A landing thud followed by a brief settle and quiet coast. Requires established flight and a descending contact; wheel-contact chatter cannot repeatedly trigger it. Strength scales linearly with descent rate to full at 500 ft/min; below 60 ft/min stays quiet. Carrier deck-relative speed is unavailable."},
         {CueShape::Continuous,false,"Optional low-level bumps from changing vertical acceleration while rolling. Flat, steady ground produces no invented engine-like buzz. Your chair is usually a better place for continuous runway texture."},
         {CueShape::Mechanism,true,"THUNK → quiet → rising travel rumble → coast → THUNK. Actual gear motion drives live duration. Animation endpoints indicate completion; they are not separately verified mechanical lock sensors."},
         {CueShape::Surge,true,"A firm ignition kick followed by a softer rumble and quiet coast. Marks afterburner engagement once. Hysteresis and a cooldown prevent throttle chatter; the two engines are treated as one headset cue."},
@@ -17,7 +48,8 @@ const EffectDefinition& effectDefinition(size_t i){
         {CueShape::Impact,true,"A quick pulse when flare or chaff count falls. A short quiet recovery separates cues; fast dispense programs coalesce rather than commanding a pulse for every cartridge. Rearm and missing counts do not trigger output."},
         {CueShape::Continuous,true,"Subtle airflow rumble from airborne gear/speedbrake deployment and airspeed. It approximates configuration drag, not measured turbulence. Gear-mechanism quiet gaps take priority."},
         {CueShape::Unavailable,false,"Deferred: damage animation changes are not reliable individual hit events. Damage and ejection need validated own-aircraft event detection before headset output is enabled."},
-        {CueShape::Continuous,true,"A sustained low rumble while either engine is in afterburner. Strength follows the stronger engine's afterburner signal. Tune it separately from the ignition kick and normal engine ambience; higher-priority cues can take over."}
+        {CueShape::Continuous,true,"A sustained low rumble while either engine is in afterburner. Strength follows the stronger engine's afterburner signal. Tune it separately from the ignition kick and normal engine ambience; higher-priority cues can take over."},
+        {CueShape::Continuous,true,"Strong Hornet/Tomcat launch rumble. Inferred from an observed deployed launch bar followed by sustained high forward acceleration on the ground. Not a direct DCS catapult event; runway and carrier validation is required. Stops at liftoff, loss of signals or four seconds."}
     }};
     return definitions.at(i);
 }
@@ -56,7 +88,7 @@ FlightFeedStatus FlightFeed::status(uint64_t now,int staleMs)const{
     result.aircraft=current_->aircraft;result.ageMs=advancedAt_ && now>=advancedAt_?now-advancedAt_:0;
     result.telemetryLive=advancedAt_ && now>=advancedAt_ && result.ageMs<uint64_t(staleMs) && current_->state!="stopped";
     result.aircraftLive=result.telemetryLive && current_->state=="flying" && !current_->aircraft.empty() && !current_->values.empty();
-    result.supported=result.aircraftLive && current_->aircraft.rfind("FA-18",0)==0;
+    result.supported=result.aircraftLive && aircraftProfile(current_->aircraft);
     return result;
 }
 Settings::Settings() {
@@ -70,7 +102,7 @@ Settings::Settings() {
     effects[Countermeasures].priority=50; effects[Countermeasures].enabled=false;
     effects[Buffet].motorMin=12; effects[Buffet].motorMax=18; effects[Buffet].attackMs=70; effects[Buffet].releaseMs=220; effects[Buffet].gain=1;
     effects[Gun].motorMin=20; effects[Gun].motorMax=25;
-    effects[Touchdown].motorMin=15; effects[Touchdown].motorMax=25; effects[Touchdown].gain=1;
+    effects[Touchdown].motorMin=10; effects[Touchdown].motorMax=25; effects[Touchdown].gain=1;
     effects[Taxi].motorMax=11; effects[Taxi].attackMs=100; effects[Taxi].releaseMs=250;
     effects[Gear].motorMin=14; effects[Gear].motorMax=20; effects[Gear].attackMs=0; effects[Gear].releaseMs=40; effects[Gear].gain=1; effects[Gear].threshold=0;
     effects[Afterburner].motorMin=15; effects[Afterburner].motorMax=20;
@@ -89,6 +121,9 @@ Settings::Settings() {
     effects[Airflow].enabled=true;effects[Airflow].motorMin=11;effects[Airflow].motorMax=13;effects[Airflow].gain=1;effects[Airflow].attackMs=180;effects[Airflow].releaseMs=120;effects[Airflow].settleMs=320;effects[Airflow].coastMs=0;
     effects[Engine].motorMin=10;effects[Engine].motorMax=12;effects[Engine].gain=.7f;effects[Engine].attackMs=400;effects[Engine].releaseMs=160;effects[Engine].settleMs=450;effects[Engine].coastMs=0;
     effects[AfterburnerRumble].motorMin=12;effects[AfterburnerRumble].motorMax=16;effects[AfterburnerRumble].gain=1;effects[AfterburnerRumble].threshold=0;effects[AfterburnerRumble].priority=30;effects[AfterburnerRumble].attackMs=250;effects[AfterburnerRumble].releaseMs=120;effects[AfterburnerRumble].settleMs=300;effects[AfterburnerRumble].coastMs=0;
+    effects[Catapult].gain=1;effects[Catapult].priority=95;effects[Catapult].threshold=0;
+    effects[Catapult].motorMin=20;effects[Catapult].motorMax=25;
+    effects[Catapult].attackMs=30;effects[Catapult].releaseMs=60;effects[Catapult].settleMs=100;
 }
 Json Settings::json() const {
     Json j={{"version",1},{"mixRevision",1},{"profile",profile},{"muted",muted},
@@ -99,11 +134,21 @@ Json Settings::json() const {
         j["effects"][effectKeys[i]]={{"enabled",e.enabled},{"gain",e.gain},{"threshold",e.threshold},{"curve",e.curve},
             {"attackMs",e.attackMs},{"releaseMs",e.releaseMs},{"motorMin",e.motorMin},{"motorMax",e.motorMax},{"priority",e.priority},
             {"holdMs",e.holdMs},{"settleMs",e.settleMs},{"coastMs",e.coastMs},{"cooldownMs",e.cooldownMs}};
-    } return j;
+    }
+    j["activeAircraft"]=activeAircraft;
+    j["aircraftTuning"]=aircraftTuning;
+    j["aircraftTuning"][activeAircraft]=tuning(j);
+    return j;
 }
 Settings Settings::fromJson(const Json& j) {
     if(!j.is_object() || j.value("version",0)!=1) throw std::runtime_error("Unsupported profile version");
     Settings s; s.profile=j.value("profile",s.profile); if(s.profile.size()>100) s.profile.resize(100);
+    s.activeAircraft=j.value("activeAircraft",std::string("hornet"));
+    if(!profileById(s.activeAircraft))s.activeAircraft="hornet";
+    if(j.contains("aircraftTuning") && j["aircraftTuning"].is_object())
+        for(const auto& p:aircraftProfiles())
+            if(j["aircraftTuning"].contains(p.id) && j["aircraftTuning"][p.id].is_object())
+                s.aircraftTuning[p.id]=tuning(j["aircraftTuning"][p.id]);
     // Obsolete startup and activation flags are ignored.
     s.muted=j.value("muted",false);
     auto number=[](const Json& obj,const char* key,float fallback,float lo,float hi) {
@@ -137,6 +182,27 @@ Settings Settings::fromJson(const Json& j) {
     if(j.value("mixRevision",0)<1 && s.effects[Buffet].priority==65)s.effects[Buffet].priority=Settings{}.effects[Buffet].priority;
     return s;
 }
+bool Settings::selectAircraft(const std::string& id){
+    const auto* aircraft=profileById(id);
+    if(!aircraft || id==activeAircraft)return false;
+    auto next=json(); // Snapshot current tuning before changing aircraft.
+    auto saved=next["aircraftTuning"];
+    Json selected;
+    if(saved.contains(id))selected=saved[id];
+    else {
+        Settings defaults;
+        defaults.profile=std::string(aircraft->name)+" - Headset essentials";
+        if(!aircraft->afterburner){defaults.effects[Afterburner].enabled=false;defaults.effects[AfterburnerRumble].enabled=false;}
+        defaults.effects[Catapult].enabled=aircraft->carrier;
+        if(aircraft->helicopter){defaults.effects[Gear].enabled=false;defaults.effects[Airflow].enabled=false;}
+        fitEffectRanges(defaults,motorFloor,motorCap);
+        selected=tuning(defaults.json());
+    }
+    for(auto it=selected.begin();it!=selected.end();++it)next[it.key()]=it.value();
+    next["activeAircraft"]=id;next["aircraftTuning"]=saved;
+    *this=fromJson(next);
+    return true;
+}
 int mapMotor(float level,int minimum,int maximum,int cap,float curve) {
     if(!std::isfinite(level) || level<=.015f) return 0;
     minimum=std::clamp(minimum,10,25); maximum=std::clamp(maximum,minimum,25); cap=std::clamp(cap,10,25);
@@ -163,7 +229,11 @@ void applyGearPreset(Settings& s){
 }
 void applyHeadsetMix(Settings& s){
     const auto gear=s.effects[Gear];s.effects=Settings{}.effects;s.effects[Gear]=gear;
-    s.profile="Hornet - Headset essentials"; // Preserve the validated gear rhythm and local calibration.
+    const auto* p=profileById(s.activeAircraft);
+    s.effects[Catapult].enabled=p && p->carrier;
+    if(p && !p->afterburner){s.effects[Afterburner].enabled=false;s.effects[AfterburnerRumble].enabled=false;}
+    if(p && p->helicopter){s.effects[Gear].enabled=false;s.effects[Airflow].enabled=false;}
+    s.profile=std::string(p?p->name:"Aircraft")+" - Headset essentials"; // Preserve the validated gear rhythm and local calibration.
 }
 void EffectEngine::reset() {
     previous_.reset(); targets_.fill(0); levels_.fill(0); available_.fill(false);
@@ -171,13 +241,15 @@ void EffectEngine::reset() {
     freshAt_=lastTick_=holdUntil_=0; held_=-1; afterburnerOn_=false;
     gearMoving_=false;gearDirection_=0;gearBegan_=gearChanged_=gearLockedAt_=0;
     airborneAt_=0;taxiBaseline_.reset();
+    catapultArmedAt_=catapultAccelAt_=catapultStart_=0;catapultSpent_=catapultReady_=false;
 }
 void EffectEngine::trigger(size_t i,uint64_t now,float strength) {
     if(!effectSupported(i)) return;
     available_[i]=true;pendingAt_[i]=now;pendingStrength_[i]=std::clamp(strength,0.f,1.f);freshAt_=now;
 }
 void EffectEngine::ingest(const Frame& f,uint64_t now,int maxGapMs) {
-    if(f.state!="flying" || f.aircraft.rfind("FA-18",0)!=0) {reset(); return;}
+    const auto* aircraft=aircraftProfile(f.aircraft);
+    if(f.state!="flying" || !aircraft) {reset(); return;}
     if(previous_ && (f.session!=previous_->session || f.aircraft!=previous_->aircraft || f.simTime<previous_->simTime || now-freshAt_>uint64_t(maxGapMs))) reset();
     if(previous_ && (f.simTime<=previous_->simTime || f.sequence<=previous_->sequence)) return;
     freshAt_=now;
@@ -190,8 +262,8 @@ void EffectEngine::ingest(const Frame& f,uint64_t now,int maxGapMs) {
     available_[Buffet]=val("shake") && ground;
     targets_[Buffet]=available_[Buffet] && *ground<.5 ? float(std::clamp(*val("shake"),0.,1.)) : 0;
     available_[Touchdown]=ground && val("vertical_mps");
-    if(ground && oldGround && *ground>.5 && *oldGround<.5 && airborneAt_ && now-airborneAt_>=500 && prev("vertical_mps") && *prev("vertical_mps")<-.3)
-        trigger(Touchdown,now,float(std::clamp(std::abs(*prev("vertical_mps"))/5.,.15,1.)));
+    if(ground && oldGround && *ground>.5 && *oldGround<.5 && airborneAt_ && now-airborneAt_>=500 && prev("vertical_mps") && *prev("vertical_mps")<=-.3048)
+        trigger(Touchdown,now,float(std::clamp(std::abs(*prev("vertical_mps"))/2.54,0.,1.)));
     if(ground && *ground<.5){if(!airborneAt_)airborneAt_=now;}else airborneAt_=0;
     available_[Taxi]=ground && speed && accel;
     targets_[Taxi]=0;
@@ -201,12 +273,12 @@ void EffectEngine::ingest(const Frame& f,uint64_t now,int maxGapMs) {
         *taxiBaseline_+=(*accel-*taxiBaseline_)*(1-std::exp(-dt/.6));
         targets_[Taxi]=float(std::clamp(std::abs(*accel-*taxiBaseline_)*2,0.,1.));
     }else taxiBaseline_.reset();
-    const auto gear=val("gear"),brake=val("airbrake"),ias=val("ias_mps");
+    const auto gear=aircraft->helicopter?std::optional<double>{}:val("gear"),brake=aircraft->helicopter?std::optional<double>{}:val("airbrake"),ias=val("ias_mps");
     available_[Airflow]=ground && ias && (gear || brake);
     // Approximate configuration airflow from deployment and airspeed, separately from gear transit.
     targets_[Airflow]=available_[Airflow] && *ground<.5 ? float(std::clamp((std::max(gear.value_or(0),brake.value_or(0)))*(*ias-40)/100,0.,1.)) : 0;
     available_[Damage]=false; // Animation damage is not a reliable individual hit event.
-    available_[Gear]=bool(val("gear"));
+    available_[Gear]=bool(gear);
     if(gear && prev("gear")){
         const double delta=*gear-*prev("gear");
         if(std::abs(delta)>.0005){
@@ -218,21 +290,44 @@ void EffectEngine::ingest(const Frame& f,uint64_t now,int maxGapMs) {
             }
         }else if(gearMoving_ && now-gearChanged_>300)gearMoving_=false;
     }else{gearMoving_=false;gearLockedAt_=0;}
-    auto ab=val("ab_left"),ab2=val("ab_right");
+    auto ab=aircraft->afterburner?val("ab_left"):std::optional<double>{};
+    auto ab2=aircraft->engines==1?ab:val("ab_right");
     available_[Afterburner]=available_[AfterburnerRumble]=ab && ab2;
     targets_[AfterburnerRumble]=0;
     if(ab && ab2) {
         const auto amount=std::max(*ab,*ab2);
-        if(!prev("ab_left") || !prev("ab_right"))afterburnerOn_=amount>.05;
+        if(!prev("ab_left") || (aircraft->engines>1 && !prev("ab_right")))afterburnerOn_=amount>.05;
         else if(!afterburnerOn_ && amount>.15){trigger(Afterburner,now,1.f);afterburnerOn_=true;}
         else if(amount<.05)afterburnerOn_=false;
         if(afterburnerOn_)targets_[AfterburnerRumble]=float(std::clamp(amount,0.,1.));
     }else afterburnerOn_=false;
     available_[Stores]=val("stores_count") && ground; if(ground && *ground<.5 && drop("stores_count")) trigger(Stores,now,1.f);
-    auto rpm=val("rpm_left_pct"),rpm2=val("rpm_right_pct"); available_[Engine]=rpm && rpm2;
+    auto rpm=val("rpm_left_pct"),rpm2=aircraft->engines==1?rpm:val("rpm_right_pct"); available_[Engine]=rpm && rpm2;
     targets_[Engine]=rpm && rpm2 ? float(std::clamp((std::max(*rpm,*rpm2)-40)/60,0.,1.)) : 0;
     available_[Countermeasures]=bool(val("flares")) || bool(val("chaff"));
     if(drop("flares") || drop("chaff")) trigger(Countermeasures,now,1.f);
+    const auto launchBar=val("launch_bar"), forwardG=val("accel_x_g");
+    available_[Catapult]=aircraft->carrier && ground && speed && launchBar && forwardG;
+    targets_[Catapult]=0;
+    if(available_[Catapult]){
+        if(*launchBar<.1 && *speed<20 && catapultSpent_){catapultSpent_=catapultReady_=false;catapultArmedAt_=0;}
+        if(!catapultSpent_ && *ground>.5 && *launchBar>.5 && *speed<25 && std::abs(*forwardG)<.3){
+            if(!catapultArmedAt_)catapultArmedAt_=now;
+            if(now-catapultArmedAt_>=500)catapultReady_=true;
+        }else if(!catapultReady_)catapultArmedAt_=0;
+        if(catapultArmedAt_ && now-catapultArmedAt_>30000){catapultReady_=false;catapultArmedAt_=0;}
+        // Require an observed low-acceleration pre-launch baseline; reconnecting mid-shot cannot fire.
+        const bool accelerating=catapultReady_ &&
+            *ground>.5 && *forwardG>1.5 && prev("ground_mps") && *speed>*prev("ground_mps");
+        if(accelerating && !catapultSpent_){
+            if(!catapultAccelAt_)catapultAccelAt_=now;
+            if(now-catapultAccelAt_>=100){catapultStart_=now;catapultSpent_=true;}
+        }else catapultAccelAt_=0;
+        if(catapultStart_ && now-catapultStart_<4000 && *ground>.5 && *forwardG>1.0)
+            targets_[Catapult]=1;
+        else if(catapultStart_)catapultStart_=0;
+        if(!catapultStart_ && *ground<.5){catapultArmedAt_=0;catapultReady_=false;}
+    }else{catapultArmedAt_=catapultAccelAt_=catapultStart_=0;catapultSpent_=catapultReady_=false;}
     previous_=f;
 }
 Mix EffectEngine::tick(uint64_t now,const Settings& s,bool demo) {
@@ -369,6 +464,7 @@ Frame effectDemoFrame(size_t i,double t,uint64_t now){
     const double rise=std::clamp((t-.4)/1.2,0.,1.),fall=std::clamp((3.3-t)/.9,0.,1.);
     const double bed=std::min(rise,fall);
     switch(i){
+    case Catapult:f.values={{"on_ground",t<2.9?1:0},{"launch_bar",1},{"ground_mps",t<.8?10:10+(t-.8)*25},{"accel_x_g",t>=.8&&t<2.9?2.5:0}};break;
     case Gun:f.values={{"cannon_rounds",500-(t>.4?std::min(70.,std::floor((t-.4)*70)):0)-(t>2.3?std::min(35.,std::floor((t-2.3)*70)):0)}};break;
     case Touchdown:f.values={{"on_ground",t<.8?0:1},{"vertical_mps",t<.8?-4.5:0}};break;
     case Buffet:f.values={{"on_ground",0},{"shake",bed*(.55+.18*std::sin(t*6))}};break;

@@ -15,13 +15,13 @@ I gotchu.
 > [!WARNING]
 > **ALPHA SOFTWARE — EXPECT TO TEST AND TUNE.** Effects and defaults are still being refined through live flights. Some cues may feel too strong, too weak or need timing adjustments for your setup. Use the individual effect tests and tuning controls to find your preferred mix; signal detection and aircraft coverage are still limited.
 
-Windows x64; F/A-18C Hornet. PSVR2SimShaker reads DCS through its own export hook and shared-memory bridge. It works alongside seat and joystick haptics without requiring SimHaptic or TelemFFB.
+Windows x64; F/A-18C Hornet, F-16C Viper, A-10C/II, F-14A/B Tomcat, F-4E Phantom and AH-64D Apache. New aircraft profiles are awaiting live-flight validation. PSVR2SimShaker reads DCS through its own export hook and shared-memory bridge. It works alongside seat and joystick haptics without requiring SimHaptic or TelemFFB.
 
 ## Prerequisites
 
 - **[PSVR2Toolkit](https://github.com/BnuuySolutions/PSVR2Toolkit)** — install a compatible experimental build and **follow its [headset jailbreaking instructions](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset)**, including the required firmware/setup steps. Toolkit and `vr2jb.exe` are not bundled with this app.
 - A PSVR2 headset connected to a Windows x64 PC, with its PC setup and SteamVR working.
-- DCS World and the F/A-18C Hornet module for live flight effects.
+- DCS World and a [supported aircraft](docs/AIRCRAFT.md) for live flight effects.
 
 ## Current features
 
@@ -30,7 +30,7 @@ Windows x64; F/A-18C Hornet. PSVR2SimShaker reads DCS through its own export hoo
 - Per-effect switches, strength controls, isolated tests and expandable timing/response controls.
 - Master, Mute, headset strength ceiling and an emergency-stop shortcut.
 - A direct four-burst headset test and a demo flight with a highlighted timeline, using your enabled mix and saved gear travel time.
-- Automatic effect output when valid Hornet telemetry and the headset are ready.
+- Automatic effect output when valid supported-aircraft telemetry and the headset are ready.
 - Persistent indicators for the DCS hook, advancing simulator telemetry and aircraft data.
 - Importable/exportable tuning profiles, connection diagnostics and a step-by-step `vr2jb.exe` guide.
 - Per-user installer and portable ZIP. Closing the window keeps the app in the tray.
@@ -39,7 +39,7 @@ Windows x64; F/A-18C Hornet. PSVR2SimShaker reads DCS through its own export hoo
 ## Potential features
 
 - More effects and richer event detection.
-- More aircraft, beyond the initial F/A-18C Hornet target.
+- Additional aircraft beyond the current six families.
 - More simulators, covering both racing and flight, including potential MSFS 2024 support.
 
 These are possibilities for future development, not supported features or promised release dates.
@@ -57,13 +57,15 @@ Download the installer or portable ZIP from [Releases](https://github.com/AdamCh
 3. Run **`vr2jb.exe`** from the compatible [vr2jb release](https://github.com/BnuuySolutions/vr2jb/releases/tag/v1.0.1) and wait for a successful unlock. Complete the Toolkit jailbreaking instructions first; see the [setup guide](docs/SETUP.md) for the exact executable and steps.
 4. Start **SteamVR** and wait for its headset indicator to show connected.
 5. Launch **PSVR2SimShaker**. On first use, install the DCS hook from **Settings → DCS integration**.
-6. Launch **DCS** and enter a Hornet mission. Effects run automatically. Master and Mute control output; tests are optional.
+6. Launch **DCS** and enter a supported aircraft mission. Effects run automatically. Master and Mute control output; tests are optional.
 
 Repeat the unlock and launch order after powering the headset off. `vr2jb.exe` does not need to remain open.
 
 The title area checks GitHub Releases at launch, including Alpha releases. The **Version** light and text are green when current; the light flashes yellow and the text stays yellow when an update is available. The four status lights form a compact row and collapse into a list in narrower windows. Click it to review the version and choose **Download and install**. The app verifies the installer against GitHub's SHA-256 digest before opening it. Close DCS before installing; your saved tuning is retained. If the check cannot reach GitHub, the status stays grey and you can retry or open Releases manually. Portable users can use the installer in their current folder or download the ZIP from Releases.
 
-The Toolkit exposes a single motor command from 10–25, plus zero for stop. This app shapes those commands into cues; it does not send audio samples to the headset. Damage/ejection effects are unavailable. Hornet signal quality, multiplayer restrictions and carrier behaviour need live-flight validation.
+The Toolkit exposes a single motor command from 10–25, plus zero for stop. This app shapes those commands into cues; it does not send audio samples to the headset. Damage/ejection effects are unavailable. Aircraft signal quality, multiplayer restrictions and carrier behaviour need live-flight validation.
+
+See [aircraft profiles and the flight QA checklist](docs/AIRCRAFT.md) for saved tuning, capability limits, catapult launches and descent-scaled touchdowns.
 
 ## Documentation
 

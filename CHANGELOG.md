@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 Alpha 1 (development candidate)
+
+- Add Viper, A-10C/II, Tomcat, Phantom and Apache telemetry profiles with automatically selected, independently saved family tuning.
+- Handle Viper single-engine afterburner, Tomcat speedbrake mapping and Apache fixed-gear/non-afterburning capabilities.
+- Add an inferred Hornet/Tomcat catapult launch cue with baseline, acceleration and timeout guards.
+- Scale touchdown strength with descent rate to full at 500 ft/min, capped above that; below 60 ft/min stays quiet.
+- Add aircraft, persistence, landing, catapult and exporter regression tests.
+- New mappings and effects require Windows live-flight/headset QA; see docs/AIRCRAFT.md.
+
 ## 0.2.3 Alpha
 
 - Show the application logo at the top left beside the title. The logo is embedded in the executable and restored when the graphics device is recreated.

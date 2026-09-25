@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Windows x64 and DCS World with the F/A-18C Hornet.
+- Windows x64 and DCS World with a [supported aircraft](AIRCRAFT.md).
 - PSVR2 connected through its supported PC setup, with SteamVR working.
 - A compatible experimental PSVR2Toolkit driver and its matching CAPI DLL.
 - Headset rumble unlocked for the current power session. See the upstream [installation guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Installation) and [headset-unlock guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset).
@@ -17,7 +17,7 @@ For a headset already configured with compatible PSVR2Toolkit and firmware 6.00,
 2. Turn on the headset and keep it awake. Leave SteamVR closed.
 3. Open the extracted `vr2jb-windows-linux-builds-v1.0.1` folder and run **`vr2jb.exe` with no arguments**. Wait for success. The console waits about eight seconds before closing; a white LED blink every two seconds indicates the unlock.
 4. Start **SteamVR** and wait until its headset indicator shows connected.
-5. Open **PSVR2SimShaker**, then start a **DCS Hornet mission**. Flight effects run automatically; tests are optional.
+5. Open **PSVR2SimShaker**, then start a **supported DCS mission**. Flight effects run automatically; tests are optional.
 
 Repeat this sequence after a red-LED headset shutdown. The helper and Toolkit test app do not need to remain open. These are per-session startup steps; first-time firmware setup is described in the [official headset guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset). SimShaker does not flash firmware or run the unlock automatically.
 
@@ -27,7 +27,7 @@ The same steps appear in **Headset → Connection help**, with **Copy startup st
 
 1. Run the setup executable. It installs for the current Windows user without administrator rights. A portable ZIP is also available.
 2. Open **Settings → DCS integration** and install the export into your DCS Saved Games profile. Restart DCS if it was running. Installation keeps a backup of the previous `Export.lua` and appends an identified hook; existing exporters remain in place.
-3. Follow the headset startup steps above. Start a Hornet mission. Output follows advancing simulator time and stops on stale telemetry; there is no live-output checkbox or test-confirmation requirement.
+3. Follow the headset startup steps above. Start a supported aircraft mission. Output follows advancing simulator time and stops on stale telemetry; there is no live-output checkbox or test-confirmation requirement.
 4. In **Effects**, use Master, Mute and each row's switch/peak strength. **Test** auditions a cue alone; **Tune** expands its options. **Headset → Test headset** and **Demo flight** are available whenever you want to explore the output.
 5. Adjust your enabled cues and strengths in **Effects**, or choose a preset in **Settings → Profiles and presets**. See the [effect guide](EFFECTS.md).
 
@@ -40,7 +40,7 @@ The top bar remains visible on every page, in this order:
 - **Version** is green when current; a newer release makes the light flash yellow and the text turn yellow. Click it for update details. Checking or unavailable status is grey.
 - **DCS hook** checks the marked export entry and both owned Lua/DLL files in detected/saved profiles. A partial installation is not marked installed. If only some profiles have the hook, the indicator reports the count.
 - **DCS telemetry** lights for recent shared-memory packets with an advancing simulator clock. It returns to waiting when DCS pauses, stops or goes stale.
-- **Aircraft** additionally requires a flying state, aircraft identity and numeric signals. Unsupported aircraft are labelled explicitly; only the Hornet drives effects. Individual cues require their own signals.
+- **Aircraft** additionally requires a flying state, aircraft identity and numeric signals. Unsupported aircraft are labelled explicitly; only the six configured aircraft families drive effects. Individual cues require their own signals.
 
 Tests never light the real DCS indicators. The direct headset test plays four 500 ms bursts with 250 ms gaps at the selected strength, independently of the flight ceiling. Effect tests and Demo flight respect Master and the ceiling. Pressing a test button unmutes; **STOP** mutes and cancels it. **Stop test** ends the test and lets available DCS effects resume.
 

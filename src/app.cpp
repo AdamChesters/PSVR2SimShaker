@@ -201,7 +201,7 @@ void App::run(std::stop_token stop){
                 }
             }
             const auto flight=flightFeed.status(now,s.staleMs);
-            const bool fresh=flight.supported,live=!s.muted && fresh && !synthetic && !rawWait && !rawEnd;
+            const bool fresh=flight.supported,live=!s.muted && fresh && s.activeAircraft==aircraftProfile(flight.aircraft)->id && !synthetic && !rawWait && !rawEnd;
             if(live || synthetic)connect(s);
             if(rawWait && haptics.status=="Headset connected" && !haptics.faulted){
                 rawWait=0;rawStart=now;rawEnd=now+2750;view.message="Test playing; a stop command follows automatically.";
@@ -233,6 +233,7 @@ void App::run(std::stop_token stop){
 
 void App::render(void* logo){
     auto s=settings();const auto v=snapshot();bool changed=false;
+    if(v.flight.supported)changed=s.selectAircraft(aircraftProfile(v.flight.aircraft)->id);
     const auto now=GetTickCount64();
     if(!hookCheckAt_ || now-hookCheckAt_>=2000){
         hookCheckAt_=now;installedHooks_=0;hookDetail_.clear();auto knownProfiles=profiles_;
@@ -277,7 +278,7 @@ void App::render(void* logo){
         ImGui::TableNextColumn();const auto hook=installedHooks_?(installedHooks_==hookProfiles_?std::string("Installed"):std::to_string(installedHooks_)+"/"+std::to_string(hookProfiles_)+" profiles"):"Not installed";
         statusLight("DCS hook",hook,installedHooks_>0,hookDetail_);
         ImGui::TableNextColumn();statusLight("DCS telemetry",v.flight.telemetryLive?"Live":"Waiting / paused",v.flight.telemetryLive,"Lights when real shared-memory telemetry has an advancing DCS clock. Tests do not change this light.");
-        ImGui::TableNextColumn();const auto aircraft=v.flight.aircraftLive?(v.flight.supported?std::string("Live / Hornet"):std::string("Live / unsupported")):"Waiting";
+        ImGui::TableNextColumn();const auto aircraft=v.flight.aircraftLive?(v.flight.supported?std::string("Live / ")+aircraftProfile(v.flight.aircraft)->name:std::string("Live / unsupported")):"Waiting";
         statusLight("Aircraft",aircraft,v.flight.aircraftLive,"Requires aircraft identity and numeric signals in the live DCS feed. Individual effects still depend on their own signals. Aircraft: "+(v.flight.aircraft.empty()?std::string("none"):v.flight.aircraft));
         ImGui::EndTable();
     }
@@ -374,13 +375,13 @@ void App::render(void* logo){
             ImGui::TableSetupColumn("Flight status",ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Master",ImGuiTableColumnFlags_WidthFixed,230);
             ImGui::TableSetupColumn("Mute",ImGuiTableColumnFlags_WidthFixed,110);
-            ImGui::TableNextColumn();ImGui::AlignTextToFramePadding();mutedText(s.muted?"Output muted":v.fresh?"Hornet connected":"Waiting for a Hornet flight");
+            ImGui::TableNextColumn();ImGui::AlignTextToFramePadding();mutedText(s.muted?"Output muted":v.fresh?"Aircraft connected":"Waiting for a supported DCS aircraft");
             ImGui::TableNextColumn();ImGui::SetNextItemWidth(-1);float percent=s.master*100;
             if(ImGui::SliderFloat("##Master",&percent,0,100,"Master %.0f%%")){s.master=percent/100;changed=true;}
             ImGui::TableNextColumn();changed|=ImGui::Checkbox("Muted",&s.muted);ImGui::EndTable();
         }
         ImGui::Spacing();
-        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Buffet),size_t(Airflow)})drawEffect(i);
+        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Catapult),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Buffet),size_t(Airflow)})drawEffect(i);
         if(ImGui::CollapsingHeader("Optional ambience")){
             ImGui::TextWrapped("Extra continuous feedback if you do not use a haptic seat or stick. Off in the default mix.");
             drawEffect(Engine);drawEffect(Taxi);
@@ -440,7 +441,7 @@ void App::render(void* logo){
                 "2. Turn on the PSVR2 headset and keep it awake. Leave SteamVR closed.\n\n"
                 "3. In the extracted vr2jb-windows-linux-builds-v1.0.1 folder, run vr2jb.exe with no arguments. Wait for success; the console closes after about 8 seconds. A white LED blink every 2 seconds indicates the unlock.\n\n"
                 "4. Start SteamVR and wait until the headset is connected.\n\n"
-                "5. Open PSVR2SimShaker, then start a DCS Hornet mission. The top lights show the installed hook, advancing DCS telemetry and aircraft data. Effects start automatically; headset tests are optional.";
+                "5. Open PSVR2SimShaker, then start a supported DCS mission. The top lights show the installed hook, advancing DCS telemetry and aircraft data. Effects start automatically; headset tests are optional.";
             ImGui::TextWrapped("%s",steps);
             ImGui::TextWrapped("Repeat after a red-LED headset shutdown. vr2jb.exe and the Toolkit test app do not need to stay running. First-time firmware setup is covered by the official guide below.");
             if(ImGui::Button("Copy startup steps"))ImGui::SetClipboardText(steps);
@@ -454,12 +455,20 @@ void App::render(void* logo){
     }else{
         heading("Make it yours.","Profiles, DCS integration and the occasional deeper adjustment.");
         if(ImGui::CollapsingHeader("Profiles and presets")){
+            ImGui::TextWrapped("Aircraft tuning: %s. Live DCS aircraft select their saved tuning automatically.",profileById(s.activeAircraft)->name);
+            ImGui::BeginDisabled(v.flight.supported);
+            if(ImGui::BeginCombo("Edit aircraft profile",profileById(s.activeAircraft)->name)){
+                for(const auto& aircraft:aircraftProfiles())
+                    if(ImGui::Selectable(aircraft.name,s.activeAircraft==aircraft.id))changed=s.selectAircraft(aircraft.id)||changed;
+                ImGui::EndCombo();
+            }
+            ImGui::EndDisabled();
             char name[128]{};strncpy_s(name,s.profile.c_str(),_TRUNCATE);
             if(labeledControl("Profile name",[&]{return ImGui::InputText("##Name",name,sizeof(name));})){s.profile=name;changed=true;}
             if(ImGui::Button("Apply default headset mix")){applyHeadsetMix(s);changed=true;uiMessage_="Flight cues updated. Your gear rhythm, demo travel and headset range were preserved.";}
-            ImGui::TextWrapped("Nine flight cues on; optional engine and runway ambience off. Preserves gear tuning, master response and the headset ceiling.");
+            ImGui::TextWrapped("Aircraft-appropriate flight cues on; optional engine and runway ambience off. Preserves gear tuning, master response and the headset ceiling.");
             if(ImGui::Button("Export profile...")){auto p=chooseFile(true,jsonFilter,L"json");if(!p.empty())try{
-                auto j=s.json();for(const char* k:{"toolkitPath","dcsProfiles","muted"})j.erase(k);
+                auto j=s.json();for(const char* k:{"toolkitPath","dcsProfiles","muted","aircraftTuning"})j.erase(k);
                 writeTextAtomic(p,j.dump(2));uiMessage_="Profile exported.";
             }catch(const std::exception& e){uiMessage_=e.what();}}
             continueRow("Import profile...");if(ImGui::Button("Import profile...")){auto p=chooseFile(false,jsonFilter,L"json");if(!p.empty())try{
@@ -469,9 +478,9 @@ void App::render(void* logo){
                 s.gearDemoSeconds=imported.gearDemoSeconds;s.profile=imported.profile;changed=true;uiMessage_="Profile imported and fitted to your local motor range.";
             }catch(const std::exception& e){uiMessage_=e.what();}}
             if(ImGui::TreeNode("More presets")){
-                auto defaults=[&]{auto mix=Settings{};fitEffectRanges(mix,s.motorFloor,s.motorCap);s.effects=mix.effects;};
-                if(ImGui::Button("Comfort")){defaults();s.master=.65f;s.profile="Hornet - Comfort";changed=true;}
-                continueRow("Events only");if(ImGui::Button("Events only")){defaults();for(size_t i:{size_t(Buffet),size_t(Airflow),size_t(AfterburnerRumble),size_t(Engine),size_t(Taxi)})s.effects[i].enabled=false;s.profile="Hornet - Events";changed=true;}
+                auto defaults=[&]{auto mix=Settings{};mix.selectAircraft(s.activeAircraft);fitEffectRanges(mix,s.motorFloor,s.motorCap);s.effects=mix.effects;};
+                if(ImGui::Button("Comfort")){defaults();s.master=.65f;s.profile=std::string(profileById(s.activeAircraft)->name)+" - Comfort";changed=true;}
+                continueRow("Events only");if(ImGui::Button("Events only")){defaults();for(size_t i:{size_t(Buffet),size_t(Airflow),size_t(AfterburnerRumble),size_t(Engine),size_t(Taxi)})s.effects[i].enabled=false;s.profile=std::string(profileById(s.activeAircraft)->name)+" - Events";changed=true;}
                 ImGui::TreePop();
             }
         }
