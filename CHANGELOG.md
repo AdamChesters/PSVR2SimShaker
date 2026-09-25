@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.0 Alpha 1 (development candidate)
+## 0.3.0 Alpha 2
+
+- Recognize the official PSVR2Toolkit 1.0.0 Experimental 2 Windows CAPI DLL, fixing the unvalidated-toolkit output fault for that release.
+- Aircraft effects are unchanged; new profiles and carrier cues still require live-flight/headset testing.
+
+## 0.3.0 Alpha 1
 
 - Add Viper, A-10C/II, Tomcat, Phantom and Apache telemetry profiles with automatically selected, independently saved family tuning.
 - Handle Viper single-engine afterburner, Tomcat speedbrake mapping and Apache fixed-gear/non-afterburning capabilities.
