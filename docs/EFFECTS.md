@@ -4,11 +4,17 @@ Effects use bounded motor commands and envelopes suited to a single headset moto
 
 ## Everyday controls
 
-**Effects** lists available cues alphabetically, including runway bumps and engine ambience. Each row has an enable switch, peak strength and **Test**. Test plays the selected cue alone, even if its switch is off, without changing that switch. Master response and the headset ceiling still apply. **STOP** mutes all output and cancels tests. **Stop test** ends an effect audition; available DCS flight output resumes unless muted.
+**Effects** lists the selected aircraft profile's supported cues alphabetically, including runway bumps and engine ambience. Aircraft capabilities determine which rows appear; temporarily missing telemetry does not hide rows. Each row has an enable switch, peak strength and **Test**. Test plays the selected cue alone, even if its switch is off, without changing that switch. Master response and the headset ceiling still apply. **STOP** mutes all output and cancels tests. **Stop test** ends an effect audition; available DCS flight output resumes unless muted.
 
 **Tune** expands a cue's description and optional timing, response/mixing, and command-preview panels. These panels start closed. Runway bumps and engine ambience remain off by default. The preview plots the actual engine's synthetic motor commands, not a recording of physical motor movement.
 
 **Headset** contains connection, the direct four-burst test, Demo flight with a highlighted timeline, and the flight ceiling. **Settings** contains profiles and DCS integration, with diagnostics inside an expandable section. Effects run automatically with valid supported-aircraft telemetry; there is no live-output toggle or required test.
+
+Each row has an activity light: green **Active** means its layer is active, even if another cue wins. A pulsing ring and **Output** label mark the current motor command. **Gap** marks an intentional quiet phase that still holds priority. Muting, an output fault or a direct motor test removes the output marker; live signal activity may remain visible. Auditions use test signals.
+
+The selected aircraft profile is shown above the list. Apache hides afterburner, catapult, gear movement and gear/brake airflow; A-10C hides afterburner and catapult. Catapult appears only for Hornet and Tomcat. The profile follows live aircraft automatically; choose a profile in Settings for offline tuning. Hidden effects retain their saved settings.
+
+Strength and graphs show requested motor commands, not measured vibration. No activity light proves the physical motor moved.
 
 ## Default cues
 

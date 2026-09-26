@@ -19,7 +19,8 @@ struct Snapshot {
     bool fresh=false,testing=false,flightDemo=false,demoWaiting=false,demoComplete=false,fault=false;
     double demoSeconds=0;
     int labActive=-1,labElapsedMs=0;
-    bool labMode=false;
+    bool labMode=false,mixRouted=false;
+    std::string mixAircraft;
     std::vector<FlightDemoStage> timeline;
 };
 enum class Action { Connect,Stop,Raw,Effect,FlightDemo,GearDemo,EndTest,LabEnter,LabExit,LabPlay };

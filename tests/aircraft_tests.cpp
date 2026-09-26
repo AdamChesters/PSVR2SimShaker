@@ -97,4 +97,45 @@ static void catapult(){
         CHECK(fired);
     }
 }
-int main(){try{profiles();capabilities();landing();catapult();std::cout<<"PASS: aircraft profiles, saved tuning, capability guards, touchdown scaling and catapult detection\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+static void effectLists(){
+    for(const auto& p:aircraftProfiles()){
+        size_t count=0;
+        for(size_t i=0;i<effectCount;++i)count+=effectSupported(i,&p);
+        CHECK(count==(p.helicopter?7:p.carrier?12:p.afterburner?11:9));
+        CHECK(effectSupported(Gun,&p)&&effectSupported(Touchdown,&p)&&effectSupported(Taxi,&p));
+        CHECK(effectSupported(Afterburner,&p)==p.afterburner);
+        CHECK(effectSupported(AfterburnerRumble,&p)==p.afterburner);
+        CHECK(effectSupported(Catapult,&p)==p.carrier);
+        CHECK(effectSupported(Gear,&p)==!p.helicopter);
+        CHECK(effectSupported(Airflow,&p)==!p.helicopter);
+        CHECK(!effectSupported(Damage,&p));
+        CHECK(!effectSupported(effectCount,&p));
+    }
+    CHECK(!effectSupported(Gun,nullptr));
+}
+static void activity(){
+    Settings s;s.effects[Engine].enabled=true;
+    EffectEngine e;Mix m;
+    for(uint64_t now=1000;now<=1600;now+=20){
+        auto f=frame("FA-18C_hornet",now);
+        f.values={{"on_ground",0},{"gear",0},{"airbrake",.8},{"ias_mps",140},
+            {"shake",.8},{"ab_left",1},{"ab_right",1},{"rpm_left_pct",90},{"rpm_right_pct",90},{"cannon_rounds",100}};
+        e.ingest(f,now);m=e.tick(now,s);
+    }
+    CHECK(m.dominant==int(Airflow));
+    CHECK(effectActivity(m,Airflow,true)==EffectActivity::Output);
+    for(auto i:{Buffet,Engine,AfterburnerRumble})CHECK(effectActivity(m,i,true)==EffectActivity::Active);
+    e.trigger(Gun,1620,1);m=e.tick(1620,s);
+    CHECK(m.dominant==int(Gun));
+    CHECK(effectActivity(m,Gun,true)==EffectActivity::Output);
+    for(auto i:{Buffet,Engine,AfterburnerRumble,Airflow})CHECK(effectActivity(m,i,true)==EffectActivity::Active);
+    // Muted/faulted/direct-test routing must never claim these cues drive output.
+    for(size_t i=0;i<effectCount;++i){auto a=effectActivity(m,i,false);CHECK(a!=EffectActivity::Output&&a!=EffectActivity::Gap);}
+    m=e.tick(2500,s);for(size_t i=0;i<effectCount;++i)CHECK(effectActivity(m,i,true)==EffectActivity::Idle);
+    // Gear can own the mix while intentionally commanding silence.
+    m={};m.dominant=int(Gear);m.effects[Gear].available=true;
+    CHECK(effectActivity(m,Gear,true)==EffectActivity::Gap);
+    CHECK(effectActivity(m,Gear,false)==EffectActivity::Idle);
+    CHECK(effectActivity(m,effectCount,true)==EffectActivity::Idle);
+}
+int main(){try{profiles();capabilities();landing();catapult();effectLists();activity();std::cout<<"PASS: aircraft profiles, saved tuning, capability guards, touchdown scaling, catapult detection, aircraft effect lists and layered activity\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

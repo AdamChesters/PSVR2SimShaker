@@ -56,6 +56,7 @@ struct AircraftProfile {
 const std::array<AircraftProfile,6>& aircraftProfiles();
 const AircraftProfile* aircraftProfile(const std::string& aircraft);
 const AircraftProfile* profileById(const std::string& id);
+bool effectSupported(size_t effect,const AircraftProfile* aircraft);
 struct Settings {
     std::string profile = "Hornet - Headset essentials";
     bool muted = false;
@@ -84,6 +85,8 @@ struct Mix {
     float intensity = 0;
     std::array<EffectView,effectCount> effects;
 };
+enum class EffectActivity { Idle, Active, Output, Gap };
+EffectActivity effectActivity(const Mix& mix,size_t effect,bool routed);
 class EffectEngine {
     std::optional<Frame> previous_;
     std::array<float,effectCount> targets_{}, levels_{};

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Show active effect layers and highlight the current output priority, including intentional quiet gaps.
+- Tailor the alphabetical effects list to each aircraft and explain that strength/graphs are commands, not measured vibration.
+
 - Add a concise Setup checklist with upstream release/installation/jailbreak links, per-session startup order and GitHub support.
 
 - Add headset USB, SteamVR and DCS status lights with short setup hints. Show jailbreak as unverified because the Toolkit has no validation query.

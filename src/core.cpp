@@ -54,6 +54,18 @@ const EffectDefinition& effectDefinition(size_t i){
     return definitions.at(i);
 }
 bool effectSupported(size_t i){return i<effectCount && effectDefinition(i).shape!=CueShape::Unavailable;}
+bool effectSupported(size_t i,const AircraftProfile* aircraft){
+    if(!aircraft || !effectSupported(i))return false;
+    if(i==Afterburner || i==AfterburnerRumble)return aircraft->afterburner;
+    if(i==Gear || i==Airflow)return !aircraft->helicopter;
+    if(i==Catapult)return aircraft->carrier;
+    return true;
+}
+EffectActivity effectActivity(const Mix& mix,size_t i,bool routed){
+    if(i>=effectCount || !mix.effects[i].available)return EffectActivity::Idle;
+    if(routed && mix.dominant==int(i))return mix.motor>0?EffectActivity::Output:EffectActivity::Gap;
+    return mix.effects[i].level>=.02f?EffectActivity::Active:EffectActivity::Idle;
+}
 std::optional<double> Frame::value(const char* k) const {
     const auto i = values.find(k); return i == values.end() ? std::nullopt : std::optional(i->second);
 }

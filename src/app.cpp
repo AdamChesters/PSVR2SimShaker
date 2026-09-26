@@ -60,6 +60,22 @@ bool statusLight(const char* label,const std::string& detail,bool ready,const st
     }
     return clicked;
 }
+void activityLight(EffectActivity activity,const std::string& reason){
+    const bool priority=activity==EffectActivity::Output||activity==EffectActivity::Gap;
+    const bool active=activity==EffectActivity::Active||activity==EffectActivity::Output;
+    const char* label=activity==EffectActivity::Output?"Output":activity==EffectActivity::Gap?"Gap":active?"Active":"Idle";
+    const auto p=ImGui::GetCursorScreenPos();const float height=ImGui::GetFrameHeight();
+    const ImVec2 center{p.x+9,p.y+height*.5f};
+    ImGui::BeginGroup();
+    ImGui::GetWindowDrawList()->AddCircleFilled(center,4,ImGui::GetColorU32(active?ImVec4(.38f,.83f,.60f,1):ImVec4(.55f,.59f,.62f,1)));
+    if(priority){
+        const float alpha=.7f+.3f*float(.5+.5*std::sin(ImGui::GetTime()*4));
+        ImGui::GetWindowDrawList()->AddCircle(center,8,ImGui::GetColorU32(ImVec4(.55f,.88f,1,alpha)),0,2);
+    }
+    ImGui::Dummy({20,height});ImGui::SameLine(0,4);ImGui::AlignTextToFramePadding();ImGui::TextUnformatted(label);
+    ImGui::EndGroup();
+    if(ImGui::IsItemHovered())ImGui::SetTooltip("%s",activity==EffectActivity::Output?"Current motor command. This is not a measurement of vibration.":activity==EffectActivity::Gap?"This cue holds priority during an intentional quiet gap.":reason.c_str());
+}
 void heading(const char* title,const char* description){
     auto& fonts=ImGui::GetIO().Fonts->Fonts;ImGui::PushFont(fonts.Size>1?fonts[1]:nullptr,34);
     ImGui::TextUnformatted(title);ImGui::PopFont();
@@ -299,6 +315,7 @@ void App::run(std::stop_token stop){
             }
             auto mixSettings=s;
             if(synthetic && (gearDemo || cueDemo>=0))for(size_t i=0;i<effectCount;++i)mixSettings.effects[i].enabled=int(i)==(gearDemo?int(Gear):cueDemo);
+            if(synthetic)for(size_t i=0;i<effectCount;++i)mixSettings.effects[i].enabled=mixSettings.effects[i].enabled&&effectSupported(i,profileById(s.activeAircraft));
             auto mix=engine.tick(now,mixSettings);
             const int patternedMotor=rawMotor && now>=rawStart && (now-rawStart)%750<500?rawMotor:0;
             int motor=rawPlaying?patternedMotor:(live || (synthetic&&!demoWaiting)?mix.motor:0);
@@ -309,13 +326,16 @@ void App::run(std::stop_token stop){
             if(!live && !synthetic && !rawPlaying && !rawWait && labActive<0){if(!idleSince)idleSince=now;
                 if(!manualConnection && now-idleSince>3000 && haptics.running())haptics.stop();
             }else idleSince=0;
+            view.mixRouted=!s.muted && !haptics.faulted && haptics.status=="Headset connected" &&
+                !labMode && !rawPlaying && !rawWait && (live || (synthetic&&!demoWaiting));
+            view.mixAircraft=s.activeAircraft;
             view.mix=mix;view.frame=lastFrame;view.requested=motor;view.acknowledged=haptics.acknowledgedMotor;
             view.headset=haptics.status;view.fault=haptics.faulted;view.fresh=fresh;view.flight=flight;view.ageMs=flight.ageMs;
             view.source=synthetic?(gearDemo?"Gear up/down demo":cueDemo>=0?std::string(effectNames[cueDemo])+" audition":"Demo flight"):rawPlaying||rawWait?"Headset test":reader.status;
             view.labMode=labMode;view.labActive=labActive;view.labElapsedMs=labActive>=0&&!labWait?int(now-labStart):0;
             if(labMode)view.source=labActive>=0?hapticPatternNames[size_t(labActive)]:"Haptic tests";
             view.testing=synthetic||rawPlaying||rawWait||labActive>=0;view.flightDemo=synthetic&&!gearDemo&&cueDemo<0;view.demoWaiting=demoWaiting||rawWait||labWait;
-        }catch(const std::exception& e){endTest();view.message=e.what();view.requested=0;view.testing=view.flightDemo=view.demoWaiting=false;}
+        }catch(const std::exception& e){endTest();view.message=e.what();view.requested=0;view.mixRouted=false;view.mix={};view.testing=view.flightDemo=view.demoWaiting=false;}
         {std::lock_guard lock(mutex_);snapshot_=view;}
         std::this_thread::sleep_for(std::chrono::milliseconds(labActive>=0?10:20));
     }
@@ -407,15 +427,20 @@ void App::render(void* logo){
         auto& e=s.effects[i];const auto& definition=effectDefinition(i);ImGui::PushID(int(i));
         ImGui::PushStyleColor(ImGuiCol_ChildBg,{.042f,.052f,.06f,1});ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,{16,10});
         ImGui::BeginChild("Cue",{0,0},ImGuiChildFlags_Borders|ImGuiChildFlags_AutoResizeY);
-        if(ImGui::BeginTable("Controls",5,ImGuiTableFlags_SizingStretchProp)){
+        if(ImGui::BeginTable("Controls",6,ImGuiTableFlags_SizingStretchProp)){
             ImGui::TableSetupColumn("Enabled",ImGuiTableColumnFlags_WidthFixed,28);
             ImGui::TableSetupColumn("Name",ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Activity",ImGuiTableColumnFlags_WidthFixed,92);
             ImGui::TableSetupColumn("Strength",ImGuiTableColumnFlags_WidthFixed,210);
             ImGui::TableSetupColumn("Test",ImGuiTableColumnFlags_WidthFixed,68);
             ImGui::TableSetupColumn("Tune",ImGuiTableColumnFlags_WidthFixed,76);
             ImGui::TableNextColumn();changed|=ImGui::Checkbox("##Live",&e.enabled);
             if(ImGui::IsItemHovered())ImGui::SetTooltip("Enable %s during live flight",effectNames[i]);
             ImGui::TableNextColumn();ImGui::AlignTextToFramePadding();ImGui::TextWrapped("%s",effectNames[i]);
+            ImGui::TableNextColumn();
+            const bool matching=v.mixAircraft==s.activeAircraft && (e.enabled||v.testing);
+            activityLight(matching?effectActivity(v.mix,i,v.mixRouted&&!s.muted):EffectActivity::Idle,
+                !e.enabled&&!v.testing?"Disabled":!matching?"Waiting for this aircraft profile":v.mix.effects[i].reason);
             ImGui::TableNextColumn();ImGui::SetNextItemWidth(-1);
             if(ImGui::SliderInt("##Strength",&e.motorMax,10,25,"Strength %d")){e.motorMin=std::min(e.motorMin,e.motorMax);changed=true;}
             if(ImGui::IsItemHovered())ImGui::SetTooltip("Peak motor command. Your master response and ceiling also apply.");
@@ -490,6 +515,9 @@ void App::render(void* logo){
             if(ImGui::SliderFloat("##Master",&percent,0,100,"Master %.0f%%")){s.master=percent/100;changed=true;}
             ImGui::TableNextColumn();changed|=ImGui::Checkbox("Muted",&s.muted);ImGui::EndTable();
         }
+        ImGui::Text("Profile: %s",profileById(s.activeAircraft)->name);
+        mutedText("Green: active layer. Ring: output priority. Gap: planned silence.");
+        mutedText("Strength and graphs show motor commands, not measured vibration.");
         ImGui::Spacing();
         static const auto alphabetical=[] {
             std::array<size_t,effectCount> order{};
@@ -497,7 +525,7 @@ void App::render(void* logo){
             std::sort(order.begin(),order.end(),[](size_t a,size_t b){return std::string_view(effectNames[a])<std::string_view(effectNames[b]);});
             return order;
         }();
-        for(const auto i:alphabetical)if(effectSupported(i))drawEffect(i);
+        for(const auto i:alphabetical)if(effectSupported(i,profileById(s.activeAircraft)))drawEffect(i);
     }else if(page_==1){
         heading("Find your feel.","Connect the headset and choose a comfortable strength.");
         ImGui::TextWrapped("%s",v.headset.c_str());
