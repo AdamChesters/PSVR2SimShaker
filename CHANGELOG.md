@@ -1,15 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 Alpha 4
 
-- Show active effect layers and highlight the current output priority, including intentional quiet gaps.
-- Tailor the alphabetical effects list to each aircraft and explain that strength/graphs are commands, not measured vibration.
-
-- Add a concise Setup checklist with upstream release/installation/jailbreak links, per-session startup order and GitHub support.
-
-- Add headset USB, SteamVR and DCS status lights with short setup hints. Show jailbreak as unverified because the Toolkit has no validation query.
-- Alphabetise the effects list and include runway bumps and engine ambience directly in it. Saved tuning and priorities are unchanged.
-- Clarify that airborne buffet follows DCS shake, rather than constant ambience or a dedicated stall/high-alpha warning.
+- Add a Setup checklist with upstream release, installation and jailbreak links, startup order and GitHub support.
+- Add headset USB, SteamVR and DCS status lights with short setup hints. Jailbreak remains unverified because the Toolkit has no validation query.
+- List effects alphabetically for the selected aircraft. Hide unsupported cues; include runway bumps and engine ambience in the main list.
+- Show green lights for active layers and a pulsing ring for the output winner. Intentional quiet phases show Gap.
+- Explain that strength and graphs represent motor commands, not measured vibration. Airborne buffet follows DCS shake, not constant ambience or a dedicated stall warning.
+- Preserve saved tuning and priorities. Aircraft profiles, carrier cues and detailed effects still require live-flight/headset testing.
 
 ## 0.3.0 Alpha 3
 
