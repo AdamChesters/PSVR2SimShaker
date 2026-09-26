@@ -4,9 +4,9 @@ Effects use bounded motor commands and envelopes suited to a single headset moto
 
 ## Everyday controls
 
-**Effects** lists the flight cues. Each row has a enable switch, peak strength and **Test**. Test plays the selected cue alone, even if its switch is off, without changing that switch. Master response and the headset ceiling still apply. **STOP** mutes all output and cancels tests. **Stop test** ends an effect audition; available DCS flight output resumes unless muted.
+**Effects** lists available cues alphabetically, including runway bumps and engine ambience. Each row has an enable switch, peak strength and **Test**. Test plays the selected cue alone, even if its switch is off, without changing that switch. Master response and the headset ceiling still apply. **STOP** mutes all output and cancels tests. **Stop test** ends an effect audition; available DCS flight output resumes unless muted.
 
-**Tune** expands a cue's description and optional timing, response/mixing, and command-preview panels. These panels start closed. **Optional ambience** holds the engine and runway effects. The preview plots the actual engine's synthetic motor commands, not a recording of physical motor movement.
+**Tune** expands a cue's description and optional timing, response/mixing, and command-preview panels. These panels start closed. Runway bumps and engine ambience remain off by default. The preview plots the actual engine's synthetic motor commands, not a recording of physical motor movement.
 
 **Headset** contains connection, the direct four-burst test, Demo flight with a highlighted timeline, and the flight ceiling. **Settings** contains profiles and DCS integration, with diagnostics inside an expandable section. Effects run automatically with valid supported-aircraft telemetry; there is no live-output toggle or required test.
 
@@ -40,7 +40,7 @@ Continuous effects receive smoothing and bounded stop fades, rather than repeate
 
 For gear/brake airflow, deployment must be nonzero, the aircraft must be airborne, and indicated airspeed must exceed 40 m/s (about 78 knots). Intensity rises with deployment and speed. It remains active after deployment finishes; full deployment reaches its maximum input at 140 m/s (about 272 knots). Partial deployment gives less input, and the response threshold may suppress very low input.
 
-If raising a cue's strength makes no difference, open **Tune → Command preview and activity** during flight. **Background suppressed** means another cue has priority; **Below threshold** means its signal is too low. Airborne buffet yields to gear, countermeasures, afterburner and configuration airflow. It remains available in otherwise quiet flight; a stronger signal does not override another effect's higher priority.
+If raising a cue's strength makes no difference, open **Tune → Command preview and activity** during flight. **Background suppressed** means another cue has priority; **Below threshold** means its signal is too low. Airborne buffet yields to gear, countermeasures, afterburner and configuration airflow. It only responds when the module reports airborne shake; it is not an always-on rumble or a dedicated stall/high-alpha detector. A stronger signal does not override another effect's higher priority.
 
 Afterburner rumble follows the current engine signal, so joining or reconnecting during afterburner can resume the rumble without inventing an ignition kick. Sustained rumble resumes as soon as the onset envelope ends. Leaving afterburner fades the rumble; missing signals or stale telemetry stop it.
 

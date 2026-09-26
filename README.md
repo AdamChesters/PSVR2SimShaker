@@ -54,14 +54,14 @@ Download the installer or portable ZIP from [Releases](https://github.com/AdamCh
 
 1. Exit **DCS, SteamVR, the PlayStation VR2 App and PSVR2SimShaker**. To exit SimShaker fully, use its tray menu or **Settings → Exit application**; the window's X only hides it.
 2. Turn the headset on and keep it awake, with SteamVR still closed.
-3. Run **`vr2jb.exe`** from the compatible [vr2jb release](https://github.com/BnuuySolutions/vr2jb/releases/tag/v1.0.1) and wait for a successful unlock. Complete the Toolkit jailbreaking instructions first; see the [setup guide](docs/SETUP.md) for the exact executable and steps.
+3. Run **`vr2jb.exe`** from the compatible [vr2jb release](https://github.com/BnuuySolutions/vr2jb/releases) and wait for a successful unlock. Complete the Toolkit jailbreaking instructions first; see the [setup checklist](docs/SETUP.md) for links and startup order.
 4. Start **SteamVR** and wait for its headset indicator to show connected.
 5. Launch **PSVR2SimShaker**. On first use, install the DCS hook from **Settings → DCS integration**.
 6. Launch **DCS** and enter a supported aircraft mission. Effects run automatically. Master and Mute control output; tests are optional.
 
 Repeat the unlock and launch order after powering the headset off. `vr2jb.exe` does not need to remain open.
 
-The title area checks GitHub Releases at launch, including Alpha releases. The **Version** light and text are green when current; the light flashes yellow and the text stays yellow when an update is available. The four status lights form a compact row and collapse into a list in narrower windows. Click it to review the version and choose **Download and install**. The app verifies the installer against GitHub's SHA-256 digest before opening it. Close DCS before installing; your saved tuning is retained. If the check cannot reach GitHub, the status stays grey and you can retry or open Releases manually. Portable users can use the installer in their current folder or download the ZIP from Releases.
+The title area checks GitHub Releases at launch, including Alpha releases. The **Version** light and text are green when current; the light flashes yellow and the text stays yellow when an update is available. The status grid also shows headset USB presence, jailbreak guidance, SteamVR, DCS and telemetry. Open **Setup** above it for a concise checklist and upstream links. Click it to review the version and choose **Download and install**. The app verifies the installer against GitHub's SHA-256 digest before opening it. Close DCS before installing; your saved tuning is retained. If the check cannot reach GitHub, the status stays grey and you can retry or open Releases manually. Portable users can use the installer in their current folder or download the ZIP from Releases.
 
 The Toolkit exposes a single motor command from 10–25, plus zero for stop. This app shapes those commands into cues; it does not send audio samples to the headset. Damage/ejection effects are unavailable. Aircraft signal quality, multiplayer restrictions and carrier behaviour need live-flight validation.
 

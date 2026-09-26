@@ -1,5 +1,8 @@
 #include "platform.hpp"
 #include <shlobj.h>
+#include <setupapi.h>
+#include <cfgmgr32.h>
+#include <tlhelp32.h>
 #include <bcrypt.h>
 #include <fstream>
 #include <sstream>
@@ -8,6 +11,46 @@
 #include <algorithm>
 
 namespace shaker {
+SystemStatus readSystemStatus(){
+    SystemStatus status;
+    const auto processes=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    if(processes!=INVALID_HANDLE_VALUE){
+        PROCESSENTRY32W entry{};entry.dwSize=sizeof(entry);
+        if(Process32FirstW(processes,&entry)){
+            bool steam=false,dcs=false;
+            do{
+                steam|=_wcsicmp(entry.szExeFile,L"vrserver.exe")==0;
+                dcs|=_wcsicmp(entry.szExeFile,L"DCS.exe")==0;
+            }while(Process32NextW(processes,&entry));
+            if(GetLastError()==ERROR_NO_MORE_FILES){
+                status.steamVR=steam?Presence::Present:Presence::Absent;
+                status.dcs=dcs?Presence::Present:Presence::Absent;
+            }
+        }
+        CloseHandle(processes);
+    }
+    // PSVR2 USB identity used by the upstream Toolkit. Enumerate present
+    // devices only; a remembered/unplugged device must never light green.
+    const auto devices=SetupDiGetClassDevsW(nullptr,L"USB",nullptr,DIGCF_ALLCLASSES|DIGCF_PRESENT);
+    if(devices!=INVALID_HANDLE_VALUE){
+        bool found=false,complete=true;
+        for(DWORD i=0;;++i){
+            SP_DEVINFO_DATA device{};device.cbSize=sizeof(device);
+            if(!SetupDiEnumDeviceInfo(devices,i,&device)){
+                if(GetLastError()!=ERROR_NO_MORE_ITEMS)complete=false;
+                break;
+            }
+            wchar_t id[MAX_DEVICE_ID_LEN]{};
+            if(!SetupDiGetDeviceInstanceIdW(devices,&device,id,MAX_DEVICE_ID_LEN,nullptr)){complete=false;continue;}
+            constexpr wchar_t prefix[]=L"USB\\VID_054C&PID_0CDE";
+            const auto length=std::size(prefix)-1;
+            if(_wcsnicmp(id,prefix,length)==0 && (id[length]==L'&'||id[length]==L'\\')){found=true;break;}
+        }
+        status.headset=found?Presence::Present:complete?Presence::Absent:Presence::Unknown;
+        SetupDiDestroyDeviceInfoList(devices);
+    }
+    return status;
+}
 std::string utf8(const std::wstring& s) {
     if(s.empty())return {};
     int n=WideCharToMultiByte(CP_UTF8,0,s.data(),int(s.size()),nullptr,0,nullptr,nullptr);

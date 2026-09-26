@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add a concise Setup checklist with upstream release/installation/jailbreak links, per-session startup order and GitHub support.
+
+- Add headset USB, SteamVR and DCS status lights with short setup hints. Show jailbreak as unverified because the Toolkit has no validation query.
+- Alphabetise the effects list and include runway bumps and engine ambience directly in it. Saved tuning and priorities are unchanged.
+- Clarify that airborne buffet follows DCS shake, rather than constant ambience or a dedicated stall/high-alpha warning.
+
 ## 0.3.0 Alpha 3
 
 - Add a Tests pane with steady rumble, sweep, single pulse, double knock, pulsing rumble and pulse-over-rumble controls.

@@ -37,10 +37,10 @@ static Json tuning(const Json& j){
 }
 const EffectDefinition& effectDefinition(size_t i){
     static const std::array<EffectDefinition,effectCount> definitions={{
-        {CueShape::Continuous,true,"Smooth airborne airframe shake. DCS supplies a general shake signal, not an isolated stall warning or a G-force measurement. Suppressed on the ground and behind higher-priority impacts."},
+        {CueShape::Continuous,true,"Airframe feedback only while DCS reports airborne shake. Not an always-on ambience or a dedicated stall/high-alpha warning; other shake sources depend on the aircraft module. Suppressed on the ground and behind higher-priority impacts."},
         {CueShape::Burst,true,"One sustained rumble while cannon ammunition falls, followed by a short settle, then any active background resumes. Individual rounds are too fast for separate headset pulses. Unlimited-ammunition missions may not provide this signal."},
         {CueShape::Impact,true,"A landing thud followed by a brief settle, then any active background resumes. Requires established flight and a descending contact; wheel-contact chatter cannot repeatedly trigger it. Strength scales linearly with descent rate to full at 500 ft/min; below 60 ft/min stays quiet. Carrier deck-relative speed is unavailable."},
-        {CueShape::Continuous,false,"Optional low-level bumps from changing vertical acceleration while rolling. Flat, steady ground produces no invented engine-like buzz. Your chair is usually a better place for continuous runway texture."},
+        {CueShape::Continuous,false,"Bumps from changing vertical acceleration while rolling. Flat, steady ground stays quiet. Off by default; enable and tune to taste."},
         {CueShape::Mechanism,true,"THUNK → quiet → rising travel rumble → coast → THUNK. Actual gear motion drives live duration. Animation endpoints indicate completion; they are not separately verified mechanical lock sensors."},
         {CueShape::Surge,true,"A firm ignition kick followed by a softer rumble, then any active background resumes. Marks afterburner engagement once. Hysteresis and a cooldown prevent throttle chatter; the two engines are treated as one headset cue."},
         {CueShape::Impact,true,"A quick, sharp release pulse with a retrigger delay. Falling airborne store count includes release AND jettison; it cannot identify weapon type or prove a successful launch. Rapid salvos coalesce instead of building a pulse queue."},
@@ -425,7 +425,7 @@ std::vector<FlightDemoStage> flightDemoStages(const Settings& s){
     const auto tail=[&](size_t i){const auto& c=s.effects[i];return (c.holdMs+c.settleMs+c.coastMs)/1000.+.4;};
     const double travel=std::clamp(double(s.gearDemoSeconds),3.,15.);
     const double gearDuration=travel+gearDemoRestSeconds(s)+.1;
-    add(FlightDemoStep::Roll,3,"Ground roll","Optional engine and runway ambience; quiet when both are disabled.");
+    add(FlightDemoStep::Roll,3,"Ground roll","Engine ambience and runway bumps; quiet when both are disabled.");
     add(FlightDemoStep::GearUp,gearDuration,"Takeoff / gear up","Start THUNK, quiet gap, travel rumble, coast and lock THUNK.");
     add(FlightDemoStep::Gunfire,1.2+tail(Gun),"Gun burst","Sustained firing, then a short settle and quiet recovery.");
     add(FlightDemoStep::Buffet,3+s.effects[Buffet].settleMs/1000.,"Airborne buffet","A rising and falling airframe shake.");

@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <sstream>
+#include <string_view>
 
 namespace shaker {
 namespace {
@@ -84,15 +85,54 @@ App::App(){
     try{profiles_=dcsProfiles();removeLegacyStartup();}catch(const std::exception& e){uiMessage_=e.what();}
     calibrationLow_=settings_.motorFloor;calibrationHigh_=settings_.motorCap;testMotor_=std::min(15,settings_.motorCap);
     worker_=std::jthread([this](std::stop_token stop){run(stop);});
+    statusWorker_=std::jthread([this](std::stop_token stop){
+        while(!stop.stop_requested()){
+            const auto status=readSystemStatus();
+            {std::lock_guard lock(mutex_);system_=status;}
+            for(int i=0;i<10&&!stop.stop_requested();++i)std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    });
 }
-App::~App(){updates_.cancel();worker_.request_stop();if(worker_.joinable())worker_.join();try{save();}catch(...){} }
+App::~App(){updates_.cancel();statusWorker_.request_stop();worker_.request_stop();if(statusWorker_.joinable())statusWorker_.join();if(worker_.joinable())worker_.join();try{save();}catch(...){} }
 Settings App::settings()const{std::lock_guard lock(mutex_);return settings_;}
-Snapshot App::snapshot()const{std::lock_guard lock(mutex_);return snapshot_;}
+Snapshot App::snapshot()const{std::lock_guard lock(mutex_);auto result=snapshot_;result.system=system_;return result;}
 void App::command(Command c){std::lock_guard lock(mutex_);if(c.action==Action::LabPlay)settings_.muted=false;commands_.push_back(std::move(c));}
 void App::save(){writeTextAtomic(dataDirectory()/L"settings.json",settings().json().dump(2));settingsDirty_=false;}
 void App::emergencyStop(){
     {std::lock_guard lock(mutex_);settings_.muted=true;commands_.push_back({Action::Stop});}
     settingsDirty_=true;saveAt_=GetTickCount64()+200;
+}
+void App::renderSetup(){
+    if(showSetup_){ImGui::OpenPopup("Setup");showSetup_=false;}
+    const auto screen=ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(screen->GetCenter(),ImGuiCond_Appearing,{.5f,.5f});
+    ImGui::SetNextWindowSize({std::min(700.f,screen->Size.x-48),std::min(620.f,screen->Size.y-48)},ImGuiCond_Appearing);
+    if(ImGui::BeginPopupModal("Setup",nullptr,ImGuiWindowFlags_NoCollapse)){
+        ImGui::BeginChild("SetupSteps",{0,-ImGui::GetFrameHeightWithSpacing()-8});
+        const auto link=[](const char* text,const wchar_t* url){
+            if(ImGui::Button(text))ShellExecuteW(nullptr,L"open",url,nullptr,nullptr,SW_SHOWNORMAL);
+        };
+        mutedText("Quick checklist. Follow the linked projects for current requirements and full instructions.");
+        ImGui::Spacing();ImGui::SeparatorText("Install once");
+        ImGui::TextWrapped("1. Install the newest compatible PSVR2Toolkit release. Check all releases, including experimental builds, and follow its installation guide.");
+        link("Toolkit releases",L"https://github.com/BnuuySolutions/PSVR2Toolkit/releases");
+        continueRow("Installation guide");link("Installation guide",L"https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Installation");
+        ImGui::TextWrapped("2. Follow the headset jailbreak guide, including firmware requirements. Download and extract vr2jb for Windows.");
+        link("Jailbreak guide",L"https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset");
+        continueRow("vr2jb releases");link("vr2jb releases",L"https://github.com/BnuuySolutions/vr2jb/releases");
+        ImGui::TextWrapped("3. In Settings > DCS integration, install the export hook into your DCS profile. Restart DCS if it was open.");
+        ImGui::Spacing();ImGui::SeparatorText("After each headset power-on, in this order");
+        ImGui::TextWrapped("1. Keep SteamVR and the PlayStation VR2 App closed. Power on the headset, run vr2jb.exe from its extracted folder, and wait for success. If it fails, follow the jailbreak guide before continuing.");
+        ImGui::TextWrapped("2. Start SteamVR and wait for the headset to connect.");
+        ImGui::TextWrapped("3. Open PSVR2SimShaker. Use Tests to check that you feel vibration; the app cannot automatically validate the jailbreak.");
+        ImGui::TextWrapped("4. Start DCS and enter a supported aircraft: Hornet, Viper, A-10C/II, Tomcat, Phantom or Apache. Unpause and check the telemetry and aircraft lights. Unmute output.");
+        ImGui::Spacing();ImGui::Separator();
+        ImGui::TextWrapped("Need help? Open a GitHub issue. A subreddit is planned.");
+        link("Open an issue",L"https://github.com/AdamChesters/PSVR2SimShaker/issues/new");
+        ImGui::EndChild();
+        if(ImGui::Button("Close"))ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 }
 void App::renderChangelog(){
     if(showChangelog_){ImGui::OpenPopup("What's new");showChangelog_=false;}
@@ -325,15 +365,31 @@ void App::render(void* logo){
         if(ImGui::IsItemHovered())ImGui::SetTooltip("Stop and mute all output. Ctrl + Alt + Space.");ImGui::EndTable();
     }
     ImGui::Spacing();
+    if(ImGui::Button("Setup"))showSetup_=true;
+    renderSetup();
     const float statusWidth=ImGui::GetContentRegionAvail().x;
-    const bool statusList=statusWidth<980.f;
-    if(ImGui::BeginTable("ConnectionLights",statusList?1:4,ImGuiTableFlags_SizingStretchSame,{std::min(statusWidth,980.f),0})){
+    const int statusColumns=statusWidth>=980.f?4:statusWidth>=640.f?2:1;
+    if(ImGui::BeginTable("ConnectionLights",statusColumns,ImGuiTableFlags_SizingStretchSame,{std::min(statusWidth,980.f),0})){
         ImGui::TableNextColumn();renderUpdates();
+        const auto presenceLight=[&](const char* label,Presence state,const char* positive,const char* help,const char* missing){
+            ImGui::TableNextColumn();
+            statusLight(label,state==Presence::Present?positive:state==Presence::Absent?"Not detected":"Unknown",state==Presence::Present,help);
+            if(state!=Presence::Present)mutedText(state==Presence::Unknown?"Status check unavailable; check manually.":missing);
+        };
+        presenceLight("Headset",v.system.headset,"USB connected","PSVR2 is present in Windows USB devices. This does not verify tracking, power state or rumble unlock.","Connect and power on the headset.");
+        ImGui::TableNextColumn();
+        statusLight("Jailbreak","Unverified",false,"The Toolkit API has no jailbreak status query. Command acceptance does not validate physical rumble.");
+        mutedText("Run jailbreak before SteamVR.");
+        presenceLight("SteamVR",v.system.steamVR,"Running","Detects vrserver.exe. Headset tracking and Toolkit readiness are separate.","Run jailbreak first, then start SteamVR.");
+        presenceLight("DCS",v.system.dcs,"Running","Detects DCS.exe, including menus or paused flight. A dedicated DCS server is not the flight client.","Start DCS and enter a flight for effects.");
         ImGui::TableNextColumn();const auto hook=installedHooks_?(installedHooks_==hookProfiles_?std::string("Installed"):std::to_string(installedHooks_)+"/"+std::to_string(hookProfiles_)+" profiles"):"Not installed";
         statusLight("DCS hook",hook,installedHooks_>0,hookDetail_);
+        if(!installedHooks_)mutedText("Install the export hook in Settings.");
         ImGui::TableNextColumn();statusLight("DCS telemetry",v.flight.telemetryLive?"Live":"Waiting / paused",v.flight.telemetryLive,"Lights when real shared-memory telemetry has an advancing DCS clock. Tests do not change this light.");
+        if(!v.flight.telemetryLive)mutedText("Enter or resume a flight.");
         ImGui::TableNextColumn();const auto aircraft=v.flight.aircraftLive?(v.flight.supported?std::string("Live / ")+aircraftProfile(v.flight.aircraft)->name:std::string("Live / unsupported")):"Waiting";
         statusLight("Aircraft",aircraft,v.flight.aircraftLive,"Requires aircraft identity and numeric signals in the live DCS feed. Individual effects still depend on their own signals. Aircraft: "+(v.flight.aircraft.empty()?std::string("none"):v.flight.aircraft));
+        if(!v.flight.aircraftLive)mutedText("Enter an aircraft to receive flight signals.");
         ImGui::EndTable();
     }
     ImGui::Separator();ImGui::Spacing();
@@ -435,11 +491,13 @@ void App::render(void* logo){
             ImGui::TableNextColumn();changed|=ImGui::Checkbox("Muted",&s.muted);ImGui::EndTable();
         }
         ImGui::Spacing();
-        for(size_t i:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Catapult),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Buffet),size_t(Airflow)})drawEffect(i);
-        if(ImGui::CollapsingHeader("Optional ambience")){
-            ImGui::TextWrapped("Extra continuous feedback if you do not use a haptic seat or stick. Off in the default mix.");
-            drawEffect(Engine);drawEffect(Taxi);
-        }
+        static const auto alphabetical=[] {
+            std::array<size_t,effectCount> order{};
+            for(size_t i=0;i<effectCount;++i)order[i]=i;
+            std::sort(order.begin(),order.end(),[](size_t a,size_t b){return std::string_view(effectNames[a])<std::string_view(effectNames[b]);});
+            return order;
+        }();
+        for(const auto i:alphabetical)if(effectSupported(i))drawEffect(i);
     }else if(page_==1){
         heading("Find your feel.","Connect the headset and choose a comfortable strength.");
         ImGui::TextWrapped("%s",v.headset.c_str());
@@ -489,22 +547,9 @@ void App::render(void* logo){
             ImGui::TextWrapped("1.00 spaces command settings evenly. Lower values strengthen medium cues; higher values soften them. This is a subjective response curve.");
         }
         if(ImGui::CollapsingHeader("Connection help")){
-            ImGui::TextWrapped("Start a headset session with vr2jb.exe (v1.0.1). For a headset already set up with compatible PSVR2Toolkit and firmware 6.00:");
-            static constexpr auto steps=
-                "1. Exit DCS, SteamVR, the PlayStation VR2 App and PSVR2SimShaker. In SimShaker use Settings > Exit application, or the tray's Exit; X only hides the window.\n\n"
-                "2. Turn on the PSVR2 headset and keep it awake. Leave SteamVR closed.\n\n"
-                "3. In the extracted vr2jb-windows-linux-builds-v1.0.1 folder, run vr2jb.exe with no arguments. Wait for success; the console closes after about 8 seconds. A white LED blink every 2 seconds indicates the unlock.\n\n"
-                "4. Start SteamVR and wait until the headset is connected.\n\n"
-                "5. Open PSVR2SimShaker, then start a supported DCS mission. The top lights show the installed hook, advancing DCS telemetry and aircraft data. Effects start automatically; headset tests are optional.";
-            ImGui::TextWrapped("%s",steps);
-            ImGui::TextWrapped("Repeat after a red-LED headset shutdown. vr2jb.exe and the Toolkit test app do not need to stay running. First-time firmware setup is covered by the official guide below.");
-            if(ImGui::Button("Copy startup steps"))ImGui::SetClipboardText(steps);
-            continueRow("Download vr2jb v1.0.1");
-            if(ImGui::Button("Download vr2jb v1.0.1"))ShellExecuteW(nullptr,L"open",L"https://github.com/BnuuySolutions/vr2jb/releases/tag/v1.0.1",nullptr,nullptr,SW_SHOWNORMAL);
-            continueRow("Official setup guide");
-            if(ImGui::Button("Official setup guide"))ShellExecuteW(nullptr,L"open",L"https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset",nullptr,nullptr,SW_SHOWNORMAL);
-            ImGui::TextWrapped("The app's strength setting is the toolkit's 10–25 motor command. Actual frequency and force have not been measured. A toolkit acknowledgement confirms the call completed, not physical vibration.");
-            ImGui::TextWrapped("If output faults, recover the VR runtime and reconnect. A stalled driver can delay even a stop command.");
+            ImGui::TextWrapped("Run the jailbreak before SteamVR after each headset power-on.");
+            if(ImGui::Button("Open setup checklist"))showSetup_=true;
+            ImGui::TextWrapped("If output faults, recover the VR runtime and reconnect. A toolkit acknowledgement does not prove physical vibration.");
         }
     }else if(page_==3){
         heading("Haptic tests","Compare timing and feel. Every graph spans 6 seconds, with commands from 0 to 25.");
@@ -591,7 +636,7 @@ void App::render(void* logo){
             char name[128]{};strncpy_s(name,s.profile.c_str(),_TRUNCATE);
             if(labeledControl("Profile name",[&]{return ImGui::InputText("##Name",name,sizeof(name));})){s.profile=name;changed=true;}
             if(ImGui::Button("Apply default headset mix")){applyHeadsetMix(s);changed=true;uiMessage_="Flight cues updated. Your gear rhythm, demo travel and headset range were preserved.";}
-            ImGui::TextWrapped("Aircraft-appropriate flight cues on; optional engine and runway ambience off. Preserves gear tuning, master response and the headset ceiling.");
+            ImGui::TextWrapped("Aircraft-appropriate flight cues on; engine ambience and runway bumps off. Preserves gear tuning, master response and the headset ceiling.");
             if(ImGui::Button("Export profile...")){auto p=chooseFile(true,jsonFilter,L"json");if(!p.empty())try{
                 auto j=s.json();for(const char* k:{"toolkitPath","dcsProfiles","muted","aircraftTuning"})j.erase(k);
                 writeTextAtomic(p,j.dump(2));uiMessage_="Profile exported.";

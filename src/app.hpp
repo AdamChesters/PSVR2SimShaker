@@ -9,6 +9,7 @@
 
 namespace shaker {
 struct Snapshot {
+    SystemStatus system;
     Mix mix;
     Frame frame;
     FlightFeedStatus flight;
@@ -28,7 +29,8 @@ class App {
     Settings settings_;
     Snapshot snapshot_;
     std::vector<Command> commands_;
-    std::jthread worker_;
+    std::jthread worker_,statusWorker_;
+    SystemStatus system_;
     UpdateClient updates_;
     bool updateInstallRequested_=false;
     std::string updateLaunchError_;
@@ -48,6 +50,8 @@ class App {
     void save();
     void renderUpdates();
     void renderChangelog();
+    void renderSetup();
+    bool showSetup_=false;
 public:
     App();
     ~App();
