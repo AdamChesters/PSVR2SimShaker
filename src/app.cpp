@@ -387,7 +387,7 @@ void App::render(void* logo){
                 else{
                     changed|=tuningInt(definition.shape==CueShape::Burst?"Burst hold (ms)":"Hit length (ms)",&e.holdMs,80,1000);
                     changed|=tuningInt(definition.shape==CueShape::Surge?"Rumble tail (ms)":"Settle tail (ms)",&e.settleMs,0,1000);
-                    changed|=tuningInt("Quiet recovery (ms)",&e.coastMs,0,1500);
+                    changed|=tuningInt("Retrigger recovery (ms)",&e.coastMs,0,1500);
                     if(definition.shape!=CueShape::Burst)changed|=tuningInt("Repeat cooldown (ms)",&e.cooldownMs,0,3000);
                 }
             }
