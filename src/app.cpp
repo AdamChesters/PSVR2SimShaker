@@ -69,6 +69,16 @@ Json frameJson(const Frame& f){return {{"version",1},{"state",f.state},{"aircraf
 
 }
 App::App(){
+    try{
+        const auto marker=dataDirectory()/L"update-state.json";
+        std::string lastShown;
+        if(fs::exists(marker))try{lastShown=Json::parse(readText(marker)).value("lastShownVersion","");}catch(...){}
+        showChangelog_=shouldShowChangelog(lastShown,appVersion,fs::exists(dataDirectory()/L"settings.json"));
+        changelogNeedsMark_=showChangelog_;
+        if(!showChangelog_ && lastShown.empty())writeTextAtomic(marker,Json({{"lastShownVersion",appVersion}}).dump(2));
+    }catch(const std::exception& e){uiMessage_=std::string("Update history: ")+e.what();}
+    try{changelog_=latestChangelog(readText(appDirectory()/L"CHANGELOG.md"));}
+    catch(...){changelog_="Release notes are unavailable. Open Releases for details.";}
     try{auto p=dataDirectory()/L"settings.json";if(fs::exists(p))settings_=Settings::fromJson(Json::parse(readText(p)));}
     catch(const std::exception& e){uiMessage_=std::string("Settings could not load; using safe defaults. ")+e.what();}
     try{profiles_=dcsProfiles();removeLegacyStartup();}catch(const std::exception& e){uiMessage_=e.what();}
@@ -78,11 +88,30 @@ App::App(){
 App::~App(){updates_.cancel();worker_.request_stop();if(worker_.joinable())worker_.join();try{save();}catch(...){} }
 Settings App::settings()const{std::lock_guard lock(mutex_);return settings_;}
 Snapshot App::snapshot()const{std::lock_guard lock(mutex_);return snapshot_;}
-void App::command(Command c){std::lock_guard lock(mutex_);commands_.push_back(std::move(c));}
+void App::command(Command c){std::lock_guard lock(mutex_);if(c.action==Action::LabPlay)settings_.muted=false;commands_.push_back(std::move(c));}
 void App::save(){writeTextAtomic(dataDirectory()/L"settings.json",settings().json().dump(2));settingsDirty_=false;}
 void App::emergencyStop(){
     {std::lock_guard lock(mutex_);settings_.muted=true;commands_.push_back({Action::Stop});}
     settingsDirty_=true;saveAt_=GetTickCount64()+200;
+}
+void App::renderChangelog(){
+    if(showChangelog_){ImGui::OpenPopup("What's new");showChangelog_=false;}
+    const auto screen=ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(screen->GetCenter(),ImGuiCond_Appearing,{.5f,.5f});
+    ImGui::SetNextWindowSize({std::min(640.f,screen->Size.x-48),std::min(440.f,screen->Size.y-48)},ImGuiCond_Appearing);
+    if(ImGui::BeginPopupModal("What's new",nullptr,ImGuiWindowFlags_NoCollapse)){
+        if(changelogNeedsMark_){
+            changelogNeedsMark_=false;
+            try{writeTextAtomic(dataDirectory()/L"update-state.json",Json({{"lastShownVersion",appVersion}}).dump(2));}
+            catch(const std::exception& e){uiMessage_=std::string("Could not save update history: ")+e.what();}
+        }
+        ImGui::Text("%s",appVersionDisplay);ImGui::Separator();
+        ImGui::BeginChild("ReleaseNotes",{0,-48});ImGui::TextWrapped("%s",changelog_.c_str());ImGui::EndChild();
+        if(ImGui::Button("Continue",{120,0}))ImGui::CloseCurrentPopup();
+        ImGui::SetItemDefaultFocus();ImGui::SameLine();
+        if(ImGui::Button("Open Releases"))ShellExecuteW(nullptr,L"open",wide(releasesUrl).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        ImGui::EndPopup();
+    }
 }
 void App::renderUpdates(){
     const auto u=updates_.status();
@@ -137,6 +166,7 @@ void App::renderUpdates(){
             ShellExecuteW(nullptr,L"open",wide(page).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
         }
         if(!busy){continueRow("Check again");if(ImGui::Button("Check again")){updateInstallRequested_=false;updateLaunchError_.clear();updates_.check();}}
+        continueRow("Installed changelog");if(ImGui::Button("Installed changelog")){showChangelog_=true;ImGui::CloseCurrentPopup();}
         continueRow("Close");if(ImGui::Button("Close"))ImGui::CloseCurrentPopup();
         ImGui::PopTextWrapPos();ImGui::EndPopup();
     }
@@ -147,8 +177,10 @@ void App::run(std::stop_token stop){
     int rawMotor=0,cueDemo=-1;bool synthetic=false,gearDemo=false,demoWaiting=false,manualConnection=false;
     double gearTravelSeconds=8.,gearRestSeconds=1.1;
     std::vector<FlightDemoStage> timeline;Snapshot view;
+    bool labMode=false;int labActive=-1;uint64_t labStart=0,labWait=0;HapticTest labTest;
     auto connect=[&](const Settings& s){if(!haptics.running())haptics.start(s.toolkitPath.empty()?toolkitFile():fs::path(wide(s.toolkitPath)));};
     auto endTest=[&]{
+        labActive=-1;labWait=labStart=0;
         rawMotor=0;rawWait=rawEnd=0;cueDemo=-1;synthetic=gearDemo=demoWaiting=false;
         engine.reset();view.demoComplete=false;view.demoSeconds=0;haptics.update(0,GetTickCount64());
     };
@@ -158,11 +190,20 @@ void App::run(std::stop_token stop){
         try{
             for(const auto& c:commands)switch(c.action){
             case Action::Connect:
-                haptics.stop();manualConnection=true;connect(s);view.message="Connecting; SteamVR must be running.";break;
+                endTest();haptics.stop();manualConnection=true;connect(s);view.message="Connecting; SteamVR must be running.";break;
             case Action::Stop:
                 endTest();view.message="Output stopped. Unmute to resume DCS effects.";break;
             case Action::EndTest:
                 endTest();view.message="Test stopped.";break;
+            case Action::LabEnter:
+                endTest();labMode=true;view.message="";break;
+            case Action::LabExit:
+                endTest();labMode=false;view.message="";break;
+            case Action::LabPlay:
+                endTest();labMode=true;
+                if(c.value<0 || c.value>=int(hapticPatternNames.size()))break;
+                labActive=c.value;labTest=boundedHapticTest(c.test);labWait=now+10000;
+                connect(s);view.message="Waiting for headset.";break;
             case Action::Raw:
                 endTest();rawMotor=std::clamp(c.value,10,25);rawWait=now+10000;
                 connect(s);manualConnection=true;view.message="Waiting for headset, then playing four short vibrations.";break;
@@ -181,7 +222,7 @@ void App::run(std::stop_token stop){
                 if(parseFrame(packet.payload,f,error)){
                     f.simTime=packet.simTime;f.session=packet.session;f.sequence=packet.sequence;f.receivedMs=now;
                     flightFeed.observe(f,packet.publishedMs);
-                    if(!synthetic){lastFrame=f;if(!rawWait&&!rawEnd)engine.ingest(f,now,s.staleMs);}
+                    if(!synthetic){lastFrame=f;if(!labMode&&!rawWait&&!rawEnd)engine.ingest(f,now,s.staleMs);}
                     lastSession=packet.session;lastSequence=packet.sequence;
                 }else{view.message="Telemetry rejected: "+error;flightFeed.reset();if(!synthetic)engine.reset();}
             }
@@ -201,7 +242,7 @@ void App::run(std::stop_token stop){
                 }
             }
             const auto flight=flightFeed.status(now,s.staleMs);
-            const bool fresh=flight.supported,live=!s.muted && fresh && s.activeAircraft==aircraftProfile(flight.aircraft)->id && !synthetic && !rawWait && !rawEnd;
+            const bool fresh=flight.supported,live=!s.muted && fresh && s.activeAircraft==aircraftProfile(flight.aircraft)->id && !synthetic && !labMode && !rawWait && !rawEnd;
             if(live || synthetic)connect(s);
             if(rawWait && haptics.status=="Headset connected" && !haptics.faulted){
                 rawWait=0;rawStart=now;rawEnd=now+2750;view.message="Test playing; a stop command follows automatically.";
@@ -209,24 +250,34 @@ void App::run(std::stop_token stop){
             if(rawWait && now>rawWait){endTest();view.message="Test cancelled: headset did not become ready.";}
             if(rawEnd && now>=rawEnd){endTest();view.message="Demo complete.";}
             const bool rawPlaying=rawEnd && now<rawEnd;
+            if(labActive>=0){
+                if(s.muted || haptics.faulted){endTest();view.message="Test stopped.";}
+                else if(labWait && haptics.status=="Headset connected"){
+                    labWait=0;labStart=now;view.message="";
+                }else if(labWait && now>=labWait){endTest();view.message="Test cancelled: headset did not become ready.";}
+                if(labActive>=0 && !labWait && now-labStart>=hapticTestDurationMs){endTest();view.message="Test complete.";}
+            }
             auto mixSettings=s;
             if(synthetic && (gearDemo || cueDemo>=0))for(size_t i=0;i<effectCount;++i)mixSettings.effects[i].enabled=int(i)==(gearDemo?int(Gear):cueDemo);
             auto mix=engine.tick(now,mixSettings);
             const int patternedMotor=rawMotor && now>=rawStart && (now-rawStart)%750<500?rawMotor:0;
             int motor=rawPlaying?patternedMotor:(live || (synthetic&&!demoWaiting)?mix.motor:0);
+            if(labMode)motor=labActive>=0&&!labWait?hapticTestMotor(labTest,int(now-labStart),s.motorCap):0;
             if(s.muted)motor=0;
             haptics.update(motor,now);
             if(view.message=="Connecting; SteamVR must be running." && haptics.status=="Headset connected")view.message="Headset ready. DCS effects follow your flight automatically.";
-            if(!live && !synthetic && !rawPlaying && !rawWait){if(!idleSince)idleSince=now;
+            if(!live && !synthetic && !rawPlaying && !rawWait && labActive<0){if(!idleSince)idleSince=now;
                 if(!manualConnection && now-idleSince>3000 && haptics.running())haptics.stop();
             }else idleSince=0;
             view.mix=mix;view.frame=lastFrame;view.requested=motor;view.acknowledged=haptics.acknowledgedMotor;
             view.headset=haptics.status;view.fault=haptics.faulted;view.fresh=fresh;view.flight=flight;view.ageMs=flight.ageMs;
             view.source=synthetic?(gearDemo?"Gear up/down demo":cueDemo>=0?std::string(effectNames[cueDemo])+" audition":"Demo flight"):rawPlaying||rawWait?"Headset test":reader.status;
-            view.testing=synthetic||rawPlaying||rawWait;view.flightDemo=synthetic&&!gearDemo&&cueDemo<0;view.demoWaiting=demoWaiting||rawWait;
+            view.labMode=labMode;view.labActive=labActive;view.labElapsedMs=labActive>=0&&!labWait?int(now-labStart):0;
+            if(labMode)view.source=labActive>=0?hapticPatternNames[size_t(labActive)]:"Haptic tests";
+            view.testing=synthetic||rawPlaying||rawWait||labActive>=0;view.flightDemo=synthetic&&!gearDemo&&cueDemo<0;view.demoWaiting=demoWaiting||rawWait||labWait;
         }catch(const std::exception& e){endTest();view.message=e.what();view.requested=0;view.testing=view.flightDemo=view.demoWaiting=false;}
         {std::lock_guard lock(mutex_);snapshot_=view;}
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(std::chrono::milliseconds(labActive>=0?10:20));
     }
     haptics.update(0,GetTickCount64());haptics.stop();
 }
@@ -247,7 +298,7 @@ void App::render(void* logo){
     ImGui::Begin("PSVR2SimShaker",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
     if(ImGui::BeginTable("AppHeader",3)){
         ImGui::TableSetupColumn("Brand",ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Pages",ImGuiTableColumnFlags_WidthFixed,336);
+        ImGui::TableSetupColumn("Pages",ImGuiTableColumnFlags_WidthFixed,400);
         ImGui::TableSetupColumn("Stop",ImGuiTableColumnFlags_WidthFixed,112);
         ImGui::TableNextColumn();ImGui::BeginGroup();
         if(logo){ImGui::Image(ImTextureID(reinterpret_cast<uintptr_t>(logo)),{64,64});ImGui::SameLine(0,14);}
@@ -260,11 +311,14 @@ void App::render(void* logo){
         ImGui::PushFont(nullptr,20);ImGui::TextUnformatted("by Adam Chesters");ImGui::PopFont();ImGui::EndGroup();ImGui::EndGroup();
         if(ImGui::IsItemHovered()){ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);ImGui::SetTooltip("Open PSVR2SimShaker on GitHub");}
         if(ImGui::IsItemClicked())ShellExecuteW(nullptr,L"open",L"https://github.com/AdamChesters/PSVR2SimShaker",nullptr,nullptr,SW_SHOWNORMAL);
-        ImGui::TableNextColumn();const char* pages[]={"Effects","Headset","Settings"};
-        for(int i=0;i<3;++i){
+        ImGui::TableNextColumn();const char* pages[]={"Effects","Headset","Settings","Tests"};
+        for(int i=0;i<4;++i){
             if(i)ImGui::SameLine();
             ImGui::PushStyleColor(ImGuiCol_Button,page_==i?ImVec4(.14f,.29f,.34f,1):ImVec4(.055f,.07f,.08f,1));
-            if(ImGui::Button(pages[i],{100,38}))page_=i;ImGui::PopStyleColor();
+            if(ImGui::Button(pages[i],{92,38}) && page_!=i){
+                if(page_==3)command({Action::LabExit});
+                page_=i;if(page_==3)command({Action::LabEnter});
+            }ImGui::PopStyleColor();
         }
         ImGui::TableNextColumn();ImGui::PushStyleColor(ImGuiCol_Button,{.29f,.12f,.13f,1});
         if(ImGui::Button("STOP",{108,38})){emergencyStop();s.muted=true;changed=true;}ImGui::PopStyleColor();
@@ -345,7 +399,7 @@ void App::render(void* logo){
                 changed|=tuningFloat("Attack (ms)",&e.attackMs,0,500,"%.0f");
                 changed|=tuningFloat("Release (ms)",&e.releaseMs,20,1000,"%.0f");
                 changed|=tuningInt("Priority",&e.priority,0,100);
-                ImGui::TextWrapped("Higher-priority cues take over. Quiet recovery holds lower-priority ambience back while the motor coasts.");
+                ImGui::TextWrapped("Higher-priority cues take over. Background resumes when an event finishes. Gear gaps remain quiet.");
             }
             if(ImGui::CollapsingHeader("Command preview and activity")){
                 static std::array<std::string,effectCount> keys;
@@ -452,6 +506,77 @@ void App::render(void* logo){
             ImGui::TextWrapped("The app's strength setting is the toolkit's 10–25 motor command. Actual frequency and force have not been measured. A toolkit acknowledgement confirms the call completed, not physical vibration.");
             ImGui::TextWrapped("If output faults, recover the VR runtime and reconnect. A stalled driver can delay even a stop command.");
         }
+    }else if(page_==3){
+        heading("Haptic tests","Compare timing and feel. Every graph spans 6 seconds, with commands from 0 to 25.");
+        mutedText("20 ms steps. Direct motor commands; ceiling applies. DCS output is paused on this page.");
+        ImGui::BeginDisabled(v.labActive>=0);
+        if(tuningInt("Test ceiling",&s.motorCap,10,25)){s.motorFloor=std::min(s.motorFloor,s.motorCap);changed=true;}
+        ImGui::EndDisabled();
+        if(ImGui::Button("Connect / reconnect"))command({Action::Connect});
+        continueRow("Stop test");if(ImGui::Button("Stop test"))command({Action::EndTest});
+        ImGui::SameLine();ImGui::Text("Requested %d / acknowledged %d",v.requested,v.acknowledged);
+        ImGui::Spacing();
+        if(ImGui::BeginTable("HapticPatterns",2,ImGuiTableFlags_SizingStretchProp|ImGuiTableFlags_BordersInnerH)){
+            ImGui::TableSetupColumn("Test",ImGuiTableColumnFlags_WidthFixed,300);
+            ImGui::TableSetupColumn("Command",ImGuiTableColumnFlags_WidthStretch);
+            for(size_t i=0;i<labTests_.size();++i){
+                ImGui::PushID(int(i));auto& test=labTests_[i];const bool playing=v.labActive==int(i);
+                ImGui::TableNextRow();ImGui::TableNextColumn();
+                if(ImGui::Button(hapticPatternNames[i],{-1,32})){
+                    s.muted=false;changed=true;command({Action::LabPlay,int(i),test});
+                }
+                ImGui::BeginDisabled(playing);
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,{6,3});
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,{8,4});
+                tuningInt("Strength",&test.strength,10,25);
+                if(test.pattern==HapticPattern::Sweep || test.pattern==HapticPattern::Layered)
+                    tuningInt(test.pattern==HapticPattern::Sweep?"Start strength":"Background",&test.low,10,test.strength);
+                tuningInt(test.pattern==HapticPattern::Sweep?"Sweep (ms)":"Length (ms)",&test.durationMs,20,
+                    test.pattern==HapticPattern::Steady||test.pattern==HapticPattern::Sweep?4000:1000);
+                if(test.pattern==HapticPattern::DoubleKnock || test.pattern==HapticPattern::Rhythm)
+                    tuningInt("Gap (ms)",&test.gapMs,0,1500);
+                test=boundedHapticTest(test);
+                ImGui::PopStyleVar(2);ImGui::EndDisabled();
+                ImGui::TableNextColumn();
+                const auto origin=ImGui::GetCursorScreenPos();
+                const float width=std::max(80.f,ImGui::GetContentRegionAvail().x),height=108;
+                ImGui::InvisibleButton("##Graph",{width,height+24});
+                auto* draw=ImGui::GetWindowDrawList();
+                draw->AddRectFilled(origin,{origin.x+width,origin.y+height},ImGui::GetColorU32(ImGuiCol_FrameBg),4);
+                const float left=origin.x+22,right=origin.x+width-10,top=origin.y+6,bottom=origin.y+height-6;
+                const auto grid=ImGui::GetColorU32(ImGuiCol_Border),ink=ImGui::GetColorU32(ImGuiCol_TextDisabled);
+                draw->AddText({origin.x+2,top},ink,"25");draw->AddText({origin.x+7,bottom-ImGui::GetFontSize()},ink,"0");
+                for(int sec=0;sec<=6;++sec){
+                    const float x=left+(right-left)*sec/6;
+                    draw->AddLine({x,top},{x,bottom},grid);
+                    char label[8];std::snprintf(label,sizeof(label),"%ds",sec);
+                    draw->AddText({x-ImGui::CalcTextSize(label).x*.5f,origin.y+height+3},ink,label);
+                }
+                for(int value:{0,10,25}){
+                    const float y=bottom-(bottom-top)*value/25;
+                    draw->AddLine({left,y},{right,y},grid);
+                }
+                auto point=[&](int ms,int motor){return ImVec2(left+(right-left)*ms/hapticTestDurationMs,bottom-(bottom-top)*motor/25);};
+                int prior=hapticTestMotor(test,0,s.motorCap);
+                for(int ms=20;ms<=hapticTestDurationMs;ms+=20){
+                    const int value=hapticTestMotor(test,ms,s.motorCap);
+                    draw->AddLine(point(ms-20,prior),point(ms,prior),ImGui::GetColorU32(ImGuiCol_PlotLines),2);
+                    if(value!=prior)draw->AddLine(point(ms,prior),point(ms,value),ImGui::GetColorU32(ImGuiCol_PlotLines),2);
+                    prior=value;
+                }
+                if(playing&&!v.demoWaiting){
+                    const float x=point(v.labElapsedMs,0).x;
+                    draw->AddLine({x,top},{x,bottom},ImGui::GetColorU32(ImGuiCol_Text),2);
+                }
+                if(ImGui::IsItemHovered()){
+                    const int ms=std::clamp(int((ImGui::GetIO().MousePos.x-left)/(right-left)*6000),0,6000)/20*20;
+                    ImGui::SetTooltip("%.2f s / command %d",ms/1000.f,hapticTestMotor(test,ms,s.motorCap));
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+        mutedText("Graphs show requested commands, not measured vibration. Settings last for this session.");
     }else{
         heading("Make it yours.","Profiles, DCS integration and the occasional deeper adjustment.");
         if(ImGui::CollapsingHeader("Profiles and presets")){
@@ -535,6 +660,7 @@ void App::render(void* logo){
     }
     if(!message.empty())mutedText(message.c_str());
     ImGui::EndChild();
+    renderChangelog();
     ImGui::End();
     if(changed){std::lock_guard lock(mutex_);settings_=s;settingsDirty_=true;saveAt_=GetTickCount64()+400;}
     if(settingsDirty_ && GetTickCount64()>=saveAt_)try{save();}catch(const std::exception& e){uiMessage_=e.what();settingsDirty_=false;}

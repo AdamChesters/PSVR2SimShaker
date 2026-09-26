@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 Alpha 3
+
+- Add a Tests pane with steady rumble, sweep, single pulse, double knock, pulsing rumble and pulse-over-rumble controls.
+- Compare all tests on the same six-second command graph. Adjust strength, length and gaps in 20 ms steps. Tests respect the ceiling and pause DCS output while the pane is open.
+- Resume active background rumble as soon as a foreground event finishes. Gear's deliberate internal gaps remain quiet.
+- Show this changelog once on the first launch after an update. Reopen it from the Version dialog.
+- Aircraft profiles and effects still need detailed live-flight testing. Command graphs do not measure physical vibration.
+
 ## 0.3.0 Alpha 2
 
 - Recognize the official PSVR2Toolkit 1.0.0 Experimental 2 Windows CAPI DLL, fixing the unvalidated-toolkit output fault for that release.

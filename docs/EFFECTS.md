@@ -18,8 +18,8 @@ Numbers below assume master 100%, curve 1 and ceiling 25. A range is the availab
 |---|---|---|---|
 | Catapult launch | On for Hornet/Tomcat | 20-25, strong bounded launch rumble | Inferred from launch-bar setup and sustained acceleration; not a direct catapult event. |
 | Gear up/down | On | 200 ms hit at 20 → 300 ms quiet → rising travel at 14–16 → 460 ms quiet → 250 ms hit at 19 | Position changes determine travel. Animation endpoints approximate completion. |
-| Gun burst | On | 20–25 while ammunition falls; 180 ms hold after the last observed decrease, 60 ms settle, 300 ms quiet recovery | A sustained firing cue, since individual rounds arrive too quickly for separate motor pulses. |
-| Touchdown | On | 10-25, 220 ms hit, 140 ms settle, 350 ms quiet recovery | Descending contact after at least 500 ms airborne, with a 1.1 s cooldown. Strength scales linearly to full at 500 ft/min; below 60 ft/min stays quiet. Carrier-relative velocity is unavailable. |
+| Gun burst | On | 20–25 while ammunition falls; 180 ms hold after the last observed decrease, 60 ms settle, 300 ms retrigger recovery | A sustained firing cue, since individual rounds arrive too quickly for separate motor pulses. |
+| Touchdown | On | 10-25, 220 ms hit, 140 ms settle, 350 ms retrigger recovery | Descending contact after at least 500 ms airborne, with a 1.1 s cooldown. Strength scales linearly to full at 500 ft/min; below 60 ft/min stays quiet. Carrier-relative velocity is unavailable. |
 | Afterburner onset | On | Kick at 21 for 180 ms, then roughly 14–16 rumble fading over 700 ms; 350 ms quiet | Engagement of either engine gives one combined cue. Hysteresis plus 1.4 s cooldown prevents repeated throttle chatter. Joining a flight already in AB gives no invented ignition. |
 | Afterburner rumble | On | Continuous 12–16; 250 ms attack, 120 ms release, stop fade capped at 300 ms | Follows the stronger afterburner signal while either engine remains engaged. Independent of the onset cue and normal engine ambience. |
 | Store release | On | Sharp 160 ms pulse at 20, then 280 ms quiet | Falling airborne store count. Includes jettison; does not identify a weapon or prove a successful launch. |
@@ -34,7 +34,7 @@ Store and countermeasure events arriving during their hit/recovery are consumed,
 
 ## Inertia and mixing
 
-Impact and ignition cues have explicit finite envelopes followed by zero-command recovery. Software smoothing cannot fill these zero intervals. Lower-priority continuous cues also cannot fill a higher-priority cue's recovery; an urgent cue can still interrupt it. Priorities are touchdown 100, catapult 95, gun 90, stores 80, AB onset 60, countermeasures 50, gear 45, airflow 35, sustained AB 30, buffet 25, runway 15 and engine 5.
+Impact and ignition cues have finite envelopes. When they end, the highest-priority active background resumes on the next control tick, normally about 20 ms, without a forced zero command. Retrigger recovery limits new impacts but does not silence an active background. Gear's internal quiet gaps remain part of its pattern. Priorities are touchdown 100, catapult 95, gun 90, stores 80, AB onset 60, countermeasures 50, gear 45, airflow 35, sustained AB 30, buffet 25, runway 15 and engine 5.
 
 Continuous effects receive smoothing and bounded stop fades, rather than repeated gear-like impacts. The engine selects one dominant cue; it does not add motor frequencies or sum every effect into saturation. These defaults accommodate perceived inertia without claiming measured spin-up, braking or inverse physical compensation.
 
@@ -42,7 +42,7 @@ For gear/brake airflow, deployment must be nonzero, the aircraft must be airborn
 
 If raising a cue's strength makes no difference, open **Tune → Command preview and activity** during flight. **Background suppressed** means another cue has priority; **Below threshold** means its signal is too low. Airborne buffet yields to gear, countermeasures, afterburner and configuration airflow. It remains available in otherwise quiet flight; a stronger signal does not override another effect's higher priority.
 
-Afterburner rumble follows the current engine signal, so joining or reconnecting during afterburner can resume the rumble without inventing an ignition kick. The onset cue's quiet recovery still takes priority before sustained rumble is heard. Leaving afterburner fades the rumble; missing signals or stale telemetry stop it.
+Afterburner rumble follows the current engine signal, so joining or reconnecting during afterburner can resume the rumble without inventing an ignition kick. Sustained rumble resumes as soon as the onset envelope ends. Leaving afterburner fades the rumble; missing signals or stale telemetry stop it.
 
 ## Profiles and gear preset
 

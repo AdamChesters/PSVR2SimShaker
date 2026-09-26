@@ -1,5 +1,6 @@
 #pragma once
 #include "core.hpp"
+#include "haptic_tests.hpp"
 #include "platform.hpp"
 #include "updates.hpp"
 #include <atomic>
@@ -16,10 +17,12 @@ struct Snapshot {
     uint64_t ageMs=0;
     bool fresh=false,testing=false,flightDemo=false,demoWaiting=false,demoComplete=false,fault=false;
     double demoSeconds=0;
+    int labActive=-1,labElapsedMs=0;
+    bool labMode=false;
     std::vector<FlightDemoStage> timeline;
 };
-enum class Action { Connect,Stop,Raw,Effect,FlightDemo,GearDemo,EndTest };
-struct Command {Action action;int value=0;};
+enum class Action { Connect,Stop,Raw,Effect,FlightDemo,GearDemo,EndTest,LabEnter,LabExit,LabPlay };
+struct Command {Action action;int value=0;HapticTest test{};};
 class App {
     mutable std::mutex mutex_;
     Settings settings_;
@@ -29,8 +32,11 @@ class App {
     UpdateClient updates_;
     bool updateInstallRequested_=false;
     std::string updateLaunchError_;
+    bool showChangelog_=false,changelogNeedsMark_=false;
+    std::string changelog_;
     int page_=0,selectedEffect_=0,testMotor_=15,calibrationLow_=10,calibrationHigh_=18;
     std::array<bool,effectCount> expanded_{};
+    std::array<HapticTest,6> labTests_=defaultHapticTests();
     bool settingsDirty_=false,showTimeline_=true;
     uint64_t saveAt_=0;
     uint64_t hookCheckAt_=0;
@@ -41,6 +47,7 @@ class App {
     void run(std::stop_token stop);
     void save();
     void renderUpdates();
+    void renderChangelog();
 public:
     App();
     ~App();

@@ -340,7 +340,7 @@ Mix EffectEngine::tick(uint64_t now,const Settings& s,bool demo) {
         if(!effectSupported(i)){levels_[i]=0;v.available=false;v.reason="Deferred: event not verified";continue;}
         const auto shape=effectDefinition(i).shape;
         const bool eventCue=shape==CueShape::Burst || shape==CueShape::Impact || shape==CueShape::Surge;
-        bool forceZero=false,eventCoast=false;const char* eventPhase=nullptr;
+        bool forceZero=false;const char* eventPhase=nullptr;
         float target=fresh && v.available?targets_[i]:0;
         if(eventCue){
             if(pendingAt_[i]!=consumedAt_[i]){
@@ -364,7 +364,7 @@ Mix EffectEngine::tick(uint64_t now,const Settings& s,bool demo) {
                     target=eventStrength_[i]*(shape==CueShape::Surge?
                         (.33f+.10f*std::sin(elapsed*.009f))*std::min(1.f,remaining*c.settleMs/180.f):remaining);
                     forceZero=false;eventPhase=shape==CueShape::Surge?"Ignition rumble":"Impact settling";
-                }else if(age<uint64_t(c.holdMs+c.settleMs+c.coastMs) && eventStrength_[i]>0){eventCoast=true;eventPhase="Coast / quiet recovery";}
+                }else if(age<uint64_t(c.holdMs+c.settleMs+c.coastMs) && eventStrength_[i]>0){eventPhase="Recovery / background resumes";}
             }
         }else if(shape==CueShape::Continuous){
             if(target<=c.threshold){if(!offAt_[i])offAt_[i]=now;forceZero=now-offAt_[i]>=uint64_t(c.settleMs);}
@@ -401,7 +401,7 @@ Mix EffectEngine::tick(uint64_t now,const Settings& s,bool demo) {
         // Mute, zero gain/master, disabled effects and stale telemetry still stop it.
         if(gearTravel && c.enabled && c.gain>0 && s.master>0)v.level=std::max(v.level,.02f);
         v.reason=!c.enabled?"Disabled":!fresh?"Waiting for fresh telemetry":!v.available?"Signal unavailable":v.level<.02f?"Below threshold":"Active";
-        const bool reserveGap=(gearGap || eventCoast) && c.enabled && c.gain>0 && s.master>0 && fresh && v.available;
+        const bool reserveGap=gearGap && c.enabled && c.gain>0 && s.master>0 && fresh && v.available;
         if(gearPhase && (v.level>=.02f || reserveGap))v.reason=gearPhase;
         if(eventPhase && (v.level>=.02f || reserveGap))v.reason=eventPhase;
         const float score=float(c.priority)+v.level;

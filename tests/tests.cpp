@@ -109,6 +109,10 @@ static void sustainedTests(){
         if(ignition&&!wasIgnition)++ignitionStarts;wasIgnition=ignition;
         if((n>100&&n<240) || n>300){CHECK(mix.dominant==AfterburnerRumble);CHECK(mix.motor>=12&&mix.motor<=16);}
         if(n==251)CHECK(mix.dominant==Gun&&mix.motor==25);
+        // At the first tick after the 180 ms burst + 60 ms settle, resume the
+        // already-running bed. The 300 ms retrigger recovery must not mute it.
+        if(n>=262&&n<=300)CHECK(mix.dominant==AfterburnerRumble&&mix.motor>=12);
+        if(n>100)CHECK(mix.motor>0);
     }
     CHECK(ignitionStarts==1); // The second engine and steady AB must not keep firing ignition kicks.
     const uint64_t now=31000;
@@ -147,7 +151,7 @@ static void buffetPriorityTests(){
     expected["mixRevision"]=1;expected["effects"]["buffet"]["priority"]=25;expected["aircraftTuning"]=migrated["aircraftTuning"];CHECK(migrated==expected);
     legacy["effects"]["buffet"]["priority"]=42;CHECK(Settings::fromJson(legacy).effects[Buffet].priority==42);
     migrated["effects"]["buffet"]["priority"]=65;CHECK(Settings::fromJson(migrated).effects[Buffet].priority==65);
-    // Strong continuous buffet must yield to each flight cue, including its quiet recovery.
+    // Strong continuous buffet must yield to each flight cue, with gear retaining its deliberate internal quiet gaps.
     for(size_t cue:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Airflow)}){
         auto isolated=s;for(size_t i=0;i<effectCount;++i)isolated.effects[i].enabled=i==Buffet||i==cue;
         EffectEngine engine;bool tookOver=false;

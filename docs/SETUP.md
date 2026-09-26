@@ -77,3 +77,13 @@ Use **Settings → DCS integration → Remove our export** for a selected DCS pr
 ## Current limitations
 
 This is an early preview. Individual Hornet signals need in-flight validation across missions and multiplayer export policies. Runway texture and touchdown severity are approximations; carrier-relative velocity is not available. Stores-count changes cannot distinguish release from jettison. Toolkit DLL builds require an entry in the compatibility list because earlier versions exported identical names with incompatible return types. Do not simply bypass this check for an untested binary.
+
+## Test timing and review updates
+
+Open **Tests** for adjustable pulses, sweeps and background-layer comparisons.
+All command graphs share a six-second scale. See [hardware tests](HARDWARE.md#haptic-test-pane).
+
+After an update, the installed changelog opens once on the next launch, including
+when offline. Reopen it through **Version > Installed changelog**. Fresh installs
+record the current version without an update popup; upgrading from versions before
+this feature shows the current notes once when existing settings are detected.
