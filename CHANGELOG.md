@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.3.0 Alpha 4
+
+- Add a Setup checklist with upstream release, installation and jailbreak links, startup order and GitHub support.
+- Add headset USB, SteamVR and DCS status lights with short setup hints. Jailbreak remains unverified because the Toolkit has no validation query.
+- List effects alphabetically for the selected aircraft. Hide unsupported cues; include runway bumps and engine ambience in the main list.
+- Show green lights for active layers and a pulsing ring for the output winner. Intentional quiet phases show Gap.
+- Explain that strength and graphs represent motor commands, not measured vibration. Airborne buffet follows DCS shake, not constant ambience or a dedicated stall warning.
+- Preserve saved tuning and priorities. Aircraft profiles, carrier cues and detailed effects still require live-flight/headset testing.
+
+## 0.3.0 Alpha 3
+
+- Add a Tests pane with steady rumble, sweep, single pulse, double knock, pulsing rumble and pulse-over-rumble controls.
+- Compare all tests on the same six-second command graph. Adjust strength, length and gaps in 20 ms steps. Tests respect the ceiling and pause DCS output while the pane is open.
+- Resume active background rumble as soon as a foreground event finishes. Gear's deliberate internal gaps remain quiet.
+- Show this changelog once on the first launch after an update. Reopen it from the Version dialog.
+- Aircraft profiles and effects still need detailed live-flight testing. Command graphs do not measure physical vibration.
+
+## 0.3.0 Alpha 2
+
+- Recognize the official PSVR2Toolkit 1.0.0 Experimental 2 Windows CAPI DLL, fixing the unvalidated-toolkit output fault for that release.
+- Aircraft effects are unchanged; new profiles and carrier cues still require live-flight/headset testing.
+
+## 0.3.0 Alpha 1
+
+- Add Viper, A-10C/II, Tomcat, Phantom and Apache telemetry profiles with automatically selected, independently saved family tuning.
+- Handle Viper single-engine afterburner, Tomcat speedbrake mapping and Apache fixed-gear/non-afterburning capabilities.
+- Add an inferred Hornet/Tomcat catapult launch cue with baseline, acceleration and timeout guards.
+- Scale touchdown strength with descent rate to full at 500 ft/min, capped above that; below 60 ft/min stays quiet.
+- Add aircraft, persistence, landing, catapult and exporter regression tests.
+- New mappings and effects require Windows live-flight/headset QA; see docs/AIRCRAFT.md.
+
 ## 0.2.3 Alpha
 
 - Show the application logo at the top left beside the title. The logo is embedded in the executable and restored when the graphics device is recreated.

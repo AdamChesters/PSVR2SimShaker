@@ -1,5 +1,5 @@
 -- PSVR2SimShaker independent telemetry exporter. GPL-3.0.
--- DCS signals/Hornet draw arguments reference TelemFFB (Valmantas Paliksa,
+-- DCS signals/aircraft draw arguments reference TelemFFB (Valmantas Paliksa,
 -- Micah Frisby and contributors); see THIRD_PARTY_NOTICES.md.
 -- Install through the application. Existing exporters are chained, never replaced.
 if _G.PSVR2SimShakerExport then return end
@@ -7,6 +7,20 @@ local state = { last = -1, failed = false }
 -- Hornet damage draw arguments adapted from TelemFFB's FA-18 mapping (GPL-3.0).
 -- Duplicates in the upstream sum are omitted. This is an indicator, not a hit event.
 local damageArgs = {65,135,136,137,146,148,149,150,152,153,154,156,157,158,160,166,183,213,214,215,216,217,220,222,223,224,225,226,227,230,232,233,235,241,242,244,245,247,248,265,266,267,298,299}
+-- Exact module IDs: never apply one aircraft's draw arguments to an unknown module.
+-- Shared external arguments and exceptions follow the credited TelemFFB revision.
+local hornet = { gear=3, flaps=9, brake=21, ab={28,29}, carrier=true, damage=true }
+local viper = { gear=3, flaps=9, brake=21, ab={28} }
+local warthog = { gear=3, flaps=9, brake=21 }
+local tomcat = { gear=3, flaps=9, brake=400, ab={28,29}, carrier=true }
+local phantom = { gear=3, flaps=9, brake=21, ab={28,29} }
+local apache = { helicopter=true }
+local profiles = {
+    ['FA-18C_hornet']=hornet, ['F-16C_50']=viper,
+    ['A-10C']=warthog, ['A-10C_2']=warthog,
+    ['F-14B']=tomcat, ['F-14A-135-GR']=tomcat, ['F-14A-95-GR']=tomcat,
+    ['F-4E-45MC']=phantom, ['AH-64D_BLK_II']=apache
+}
 _G.PSVR2SimShakerExport = state
 local lfs = require('lfs')
 local root = lfs.writedir() .. 'Scripts/PSVR2SimShaker/'
@@ -76,20 +90,38 @@ local function publish()
     end
     local cm = read(LoGetSnares)
     if type(cm) == 'table' then put('flares',cm.flare); put('chaff',cm.chaff) end
-    if aircraft.Name:find('FA%-18') then
-        local function arg(i) return read(LoGetAircraftDrawArgumentValue,i) end
+    local profile = profiles[aircraft.Name]
+    if profile then
+        local function arg(i)
+            if not i then return nil end
+            local n=read(LoGetAircraftDrawArgumentValue,i)
+            if finite(n) and n>=0 and n<=1 then return n end
+        end
         local l,n,r = arg(6),arg(1),arg(4)
         if finite(l) and finite(n) and finite(r) then put('on_ground', (l+n+r > 0.001) and 1 or 0) end
-        put('gear',arg(3)); put('flaps',arg(9)); put('airbrake',arg(21))
-        put('ab_left',arg(28)); put('ab_right',arg(29))
-        put('launch_bar',arg(85)); put('tail_hook',arg(25))
-        local damage, complete = 0, true
-        for _,i in ipairs(damageArgs) do
-            local value = arg(i)
-            if not finite(value) then complete = false; break end
-            damage = damage + value
+        put('gear',arg(profile.gear)); put('flaps',arg(profile.flaps)); put('airbrake',arg(profile.brake))
+        if profile.ab then
+            local left=arg(profile.ab[1])
+            local right=profile.ab[2] and arg(profile.ab[2]) or nil
+            if left and (#profile.ab==1 or right) then
+                put('ab_left',left); put('ab_right',right)
+            end
         end
-        if complete then put('damage_total',damage) end
+        if profile.carrier then put('launch_bar',arg(85)); put('tail_hook',arg(25)) end
+        if profile.helicopter then
+            -- Protected: parameter access is not available in every export context.
+            local rpm=read(function() return get_param_handle('BASE_SENSOR_PROPELLER_RPM'):get() end)
+            put('rotor_rpm',rpm)
+        end
+        if profile.damage then
+            local damage, complete = 0, true
+            for _,i in ipairs(damageArgs) do
+                local value = arg(i)
+                if not finite(value) then complete = false; break end
+                damage = damage + value
+            end
+            if complete then put('damage_total',damage) end
+        end
     end
     local packet = '{"version":1,"state":"flying","aircraft":' .. quote(aircraft.Name) .. ',"values":' .. encode(v) .. '}'
     if #packet <= 32768 then bridge.publish(packet,t) end

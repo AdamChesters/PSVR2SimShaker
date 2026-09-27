@@ -2,32 +2,35 @@
 
 ## Requirements
 
-- Windows x64 and DCS World with the F/A-18C Hornet.
+- Windows x64 and DCS World with a [supported aircraft](AIRCRAFT.md).
 - PSVR2 connected through its supported PC setup, with SteamVR working.
 - A compatible experimental PSVR2Toolkit driver and its matching CAPI DLL.
 - Headset rumble unlocked for the current power session. See the upstream [installation guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Installation) and [headset-unlock guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset).
 
-## Start a headset session
+## Setup checklist
 
-**Headset haptics WILL NOT WORK unless `vr2jb.exe` has successfully unlocked the headset for the current power session. Required order: `vr2jb.exe` → SteamVR → PSVR2SimShaker → DCS.**
+Open **Setup** above the status lights, or **Headset > Connection help > Open setup checklist**. The upstream projects are the source of truth for requirements and detailed instructions.
 
-For a headset already configured with compatible PSVR2Toolkit and firmware 6.00, use **`vr2jb.exe` from [vr2jb v1.0.1](https://github.com/BnuuySolutions/vr2jb/releases/tag/v1.0.1)**:
+Install once:
 
-1. Exit **DCS, SteamVR, the PlayStation VR2 App and PSVR2SimShaker**. In SimShaker use **Settings → Exit application** or the tray's **Exit**. The window's X only hides it.
-2. Turn on the headset and keep it awake. Leave SteamVR closed.
-3. Open the extracted `vr2jb-windows-linux-builds-v1.0.1` folder and run **`vr2jb.exe` with no arguments**. Wait for success. The console waits about eight seconds before closing; a white LED blink every two seconds indicates the unlock.
-4. Start **SteamVR** and wait until its headset indicator shows connected.
-5. Open **PSVR2SimShaker**, then start a **DCS Hornet mission**. Flight effects run automatically; tests are optional.
+1. Choose the newest compatible build from the [PSVR2Toolkit releases page](https://github.com/BnuuySolutions/PSVR2Toolkit/releases), including experimental releases, and follow its [installation guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Installation).
+2. Follow the [headset jailbreak guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset), including firmware requirements. Download and extract the Windows package from [vr2jb releases](https://github.com/BnuuySolutions/vr2jb/releases).
+3. Install SimShaker's DCS export hook in **Settings > DCS integration**. Restart DCS if it was open.
 
-Repeat this sequence after a red-LED headset shutdown. The helper and Toolkit test app do not need to remain open. These are per-session startup steps; first-time firmware setup is described in the [official headset guide](https://github.com/BnuuySolutions/PSVR2Toolkit/wiki/Jailbreaking-your-headset). SimShaker does not flash firmware or run the unlock automatically.
+After each headset power-on, follow this order:
 
-The same steps appear in **Headset → Connection help**, with **Copy startup steps** so you can keep them after exiting the app, plus download and setup links.
+1. Keep SteamVR and the PlayStation VR2 App closed. Power on the headset, run `vr2jb.exe` from its extracted folder and wait for success. Follow the upstream guide if it fails.
+2. Start SteamVR and wait for the headset to connect.
+3. Open SimShaker. Use Tests to confirm that you feel vibration; the app cannot automatically validate the jailbreak.
+4. Start DCS, enter a supported aircraft, unpause, check telemetry/aircraft lights and unmute output.
+
+For help, [open a GitHub issue](https://github.com/AdamChesters/PSVR2SimShaker/issues/new). A subreddit is planned. SimShaker does not install Toolkit, flash firmware or run the jailbreak automatically.
 
 ## First use
 
 1. Run the setup executable. It installs for the current Windows user without administrator rights. A portable ZIP is also available.
 2. Open **Settings → DCS integration** and install the export into your DCS Saved Games profile. Restart DCS if it was running. Installation keeps a backup of the previous `Export.lua` and appends an identified hook; existing exporters remain in place.
-3. Follow the headset startup steps above. Start a Hornet mission. Output follows advancing simulator time and stops on stale telemetry; there is no live-output checkbox or test-confirmation requirement.
+3. Follow the headset startup steps above. Start a supported aircraft mission. Output follows advancing simulator time and stops on stale telemetry; there is no live-output checkbox or test-confirmation requirement.
 4. In **Effects**, use Master, Mute and each row's switch/peak strength. **Test** auditions a cue alone; **Tune** expands its options. **Headset → Test headset** and **Demo flight** are available whenever you want to explore the output.
 5. Adjust your enabled cues and strengths in **Effects**, or choose a preset in **Settings → Profiles and presets**. See the [effect guide](EFFECTS.md).
 
@@ -35,12 +38,17 @@ The gear **Test** uses both directions and excludes gear drag. **Tune → Demo t
 
 ## Status lights and tests
 
-The top bar remains visible on every page, in this order:
+The status lights remain visible on every page. Version appears first.
 
+- **Headset** checks for a connected PSVR2 USB device, without opening it. USB presence does not prove tracking, power state or unlocked rumble.
+- **Jailbreak** remains **Unverified**: the Toolkit API does not expose a jailbreak-status query. Run the jailbreak before SteamVR, then use Tests to confirm physical feedback. A successful command acknowledgement is not proof of physical vibration.
+- **SteamVR** detects its `vrserver.exe` process. This does not prove headset or Toolkit readiness.
+- **DCS** detects the `DCS.exe` flight client, including menus and paused flight. A dedicated server does not count. Telemetry is checked separately.
+- These OS checks refresh about once a second, independently of the motor loop. Missing items show a short helper; failed checks show Unknown, not a false success. No status check launches or unlocks anything.
 - **Version** is green when current; a newer release makes the light flash yellow and the text turn yellow. Click it for update details. Checking or unavailable status is grey.
 - **DCS hook** checks the marked export entry and both owned Lua/DLL files in detected/saved profiles. A partial installation is not marked installed. If only some profiles have the hook, the indicator reports the count.
 - **DCS telemetry** lights for recent shared-memory packets with an advancing simulator clock. It returns to waiting when DCS pauses, stops or goes stale.
-- **Aircraft** additionally requires a flying state, aircraft identity and numeric signals. Unsupported aircraft are labelled explicitly; only the Hornet drives effects. Individual cues require their own signals.
+- **Aircraft** additionally requires a flying state, aircraft identity and numeric signals. Unsupported aircraft are labelled explicitly; only the six configured aircraft families drive effects. Individual cues require their own signals.
 
 Tests never light the real DCS indicators. The direct headset test plays four 500 ms bursts with 250 ms gaps at the selected strength, independently of the flight ceiling. Effect tests and Demo flight respect Master and the ceiling. Pressing a test button unmutes; **STOP** mutes and cancels it. **Stop test** ends the test and lets available DCS effects resume.
 
@@ -66,7 +74,7 @@ Diagnostic reports include toolkit hash, application status and current effect s
 
 ## Updating
 
-The **Version** status light and text are green when no newer release is published. When an update is available, its light flashes yellow and its text stays yellow. It sits beside the three connection lights in a compact four-column row, which collapses into a list in narrower windows. Alpha releases are included. Click the indicator to review the release, then choose **Download and install**. Close DCS before installing so it can release the export bridge DLL. The app verifies the downloaded installer's size and SHA-256 against GitHub release metadata, then opens the installer and exits. Your saved tuning and installation folder are retained; select **Open PSVR2SimShaker** at the end to restart the app. Updating does not replace the headset unlock or SteamVR startup steps.
+The **Version** status light and text are green when no newer release is published. When an update is available, its light flashes yellow and its text stays yellow. It sits with the connection lights in a grid that uses four, two or one column as space allows. Alpha releases are included. Click the indicator to review the release, then choose **Download and install**. Close DCS before installing so it can release the export bridge DLL. The app verifies the downloaded installer's size and SHA-256 against GitHub release metadata, then opens the installer and exits. Your saved tuning and installation folder are retained; select **Open PSVR2SimShaker** at the end to restart the app. Updating does not replace the headset unlock or SteamVR startup steps.
 
 If the check fails, the indicator stays grey, with **Check again** and **Open Releases** available when clicked. A release without a verifiable installer can be downloaded manually from its page. Portable users can install into the current folder or update manually from the ZIP. Checks use GitHub's public API without an account or token; network errors and rate limits do not interrupt flight effects.
 
@@ -77,3 +85,13 @@ Use **Settings → DCS integration → Remove our export** for a selected DCS pr
 ## Current limitations
 
 This is an early preview. Individual Hornet signals need in-flight validation across missions and multiplayer export policies. Runway texture and touchdown severity are approximations; carrier-relative velocity is not available. Stores-count changes cannot distinguish release from jettison. Toolkit DLL builds require an entry in the compatibility list because earlier versions exported identical names with incompatible return types. Do not simply bypass this check for an untested binary.
+
+## Test timing and review updates
+
+Open **Tests** for adjustable pulses, sweeps and background-layer comparisons.
+All command graphs share a six-second scale. See [hardware tests](HARDWARE.md#haptic-test-pane).
+
+After an update, the installed changelog opens once on the next launch, including
+when offline. Reopen it through **Version > Installed changelog**. Fresh installs
+record the current version without an update popup; upgrading from versions before
+this feature shows the current notes once when existing settings are detected.

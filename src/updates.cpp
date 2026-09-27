@@ -114,6 +114,18 @@ int compareVersions(const std::string& left,const std::string& right){
     }
     return a.prerelease.size()==b.prerelease.size()?0:a.prerelease.size()>b.prerelease.size()?1:-1;
 }
+bool shouldShowChangelog(const std::string& lastShown,const std::string& current,bool existingSettings){
+    if(lastShown.empty())return existingSettings; // Migrate installations predating this marker.
+    try{return compareVersions(current,lastShown)>0;}catch(...){return existingSettings;}
+}
+std::string latestChangelog(const std::string& markdown){
+    const auto heading=markdown.find("## ");
+    if(heading==std::string::npos)return "Release notes are unavailable. Open Releases for details.";
+    const auto body=markdown.find('\n',heading);
+    if(body==std::string::npos)return "Release notes are unavailable. Open Releases for details.";
+    const auto next=markdown.find("\n## ",body);
+    return markdown.substr(body+1,next==std::string::npos?next:next-body-1);
+}
 bool allowedUpdateUrl(const std::string& url,bool assetRedirect){
     if(url==releasesApi)return !assetRedirect;
     if(url.size()>8192||url.find_first_of("\r\n\t \\#")!=std::string::npos)return false;

@@ -1,5 +1,7 @@
 #include "core.hpp"
+#ifndef SHAKER_CORE_ONLY
 #include "integration.hpp"
+#endif
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -21,7 +23,7 @@ static void flightFeedTests(){
     f.sequence++;f.simTime+=.02;f.state="flying";f.aircraft="FA-18C_hornet";feed.observe(f,1360);
     CHECK(!feed.status(1360,300).aircraftLive); // Identity alone is not aircraft telemetry.
     f.sequence++;f.simTime+=.02;f.values["gear"]=0;f.aircraft="F-16C_50";feed.observe(f,1380);
-    status=feed.status(1380,300);CHECK(status.telemetryLive&&status.aircraftLive&&!status.supported);
+    status=feed.status(1380,300);CHECK(status.telemetryLive&&status.aircraftLive&&status.supported);
     f.sequence++;f.state="stopped";feed.observe(f,1400);CHECK(!feed.status(1400,300).telemetryLive);
     f=frame(0);f.session=99;feed.observe(f,1420);CHECK(!feed.status(1420,300).telemetryLive);
     f.sequence++;f.simTime=.02;feed.observe(f,1440);CHECK(feed.status(1440,300).supported);
@@ -107,6 +109,10 @@ static void sustainedTests(){
         if(ignition&&!wasIgnition)++ignitionStarts;wasIgnition=ignition;
         if((n>100&&n<240) || n>300){CHECK(mix.dominant==AfterburnerRumble);CHECK(mix.motor>=12&&mix.motor<=16);}
         if(n==251)CHECK(mix.dominant==Gun&&mix.motor==25);
+        // At the first tick after the 180 ms burst + 60 ms settle, resume the
+        // already-running bed. The 300 ms retrigger recovery must not mute it.
+        if(n>=262&&n<=300)CHECK(mix.dominant==AfterburnerRumble&&mix.motor>=12);
+        if(n>100)CHECK(mix.motor>0);
     }
     CHECK(ignitionStarts==1); // The second engine and steady AB must not keep firing ignition kicks.
     const uint64_t now=31000;
@@ -142,10 +148,10 @@ static void buffetPriorityTests(){
     auto legacy=s.json();legacy.erase("mixRevision");legacy["effects"]["buffet"]["priority"]=65;
     legacy["effects"]["gear"]["motorMax"]=24;legacy["effects"]["countermeasures"]["motorMax"]=19;
     auto migrated=Settings::fromJson(legacy).json();auto expected=legacy;
-    expected["mixRevision"]=1;expected["effects"]["buffet"]["priority"]=25;CHECK(migrated==expected);
+    expected["mixRevision"]=1;expected["effects"]["buffet"]["priority"]=25;expected["aircraftTuning"]=migrated["aircraftTuning"];CHECK(migrated==expected);
     legacy["effects"]["buffet"]["priority"]=42;CHECK(Settings::fromJson(legacy).effects[Buffet].priority==42);
     migrated["effects"]["buffet"]["priority"]=65;CHECK(Settings::fromJson(migrated).effects[Buffet].priority==65);
-    // Strong continuous buffet must yield to each flight cue, including its quiet recovery.
+    // Strong continuous buffet must yield to each flight cue, with gear retaining its deliberate internal quiet gaps.
     for(size_t cue:{size_t(Gear),size_t(Gun),size_t(Touchdown),size_t(Afterburner),size_t(AfterburnerRumble),size_t(Stores),size_t(Countermeasures),size_t(Airflow)}){
         auto isolated=s;for(size_t i=0;i<effectCount;++i)isolated.effects[i].enabled=i==Buffet||i==cue;
         EffectEngine engine;bool tookOver=false;
@@ -175,7 +181,7 @@ static void engineTests(){
     engine.reset();f=frame(3);f.values["vertical_mps"]=-4;engine.ingest(f,2500);
     for(int i=1;i<=25;++i){f.sequence++;f.simTime+=.02;engine.ingest(f,2500+i*20);engine.tick(2500+i*20,s);}
     f.simTime+=.02;f.sequence++;f.values["on_ground"]=1;engine.ingest(f,3020);m=engine.tick(3020,s);CHECK(m.dominant==Touchdown);
-    f.aircraft="F-16C_50";engine.ingest(f,3040);CHECK(engine.tick(3040,s).motor==0);
+    f.aircraft="F-16C_50";engine.ingest(f,3040);CHECK(engine.tick(3040,s).effects[Touchdown].level==0);
     engine.reset();f=frame(3.5);engine.ingest(f,3500);f.simTime+=1;f.sequence++;f.values["cannon_rounds"]-=30;engine.ingest(f,3900);
     CHECK(engine.tick(3900,s).effects[Gun].level==0); // Reconnect cannot infer a burst from an old ammunition baseline.
     engine.reset();f=frame(4);f.values["ab_left"]=0;f.values["ab_right"]=0;engine.ingest(f,4000);
@@ -271,6 +277,7 @@ static void gearTests(){
     // Stop/reversal during the coast cancels the old endpoint gesture.
     f=gearDemoFrame(5.4,39400,4.8);f.sequence=300;f.values["gear"]=.05;engine.ingest(f,39400);CHECK(engine.tick(39400,s).motor==20);
 }
+#ifndef SHAKER_CORE_ONLY
 static void integrationTests(){
     const std::string original="-- Existing exports\r\ndofile('Tacview.lua')\r\nrequire('telemffb')\r\n";
     const std::string hook="-- BEGIN PSVR2SimShaker\nour_hook()\n-- END PSVR2SimShaker\n";
@@ -290,4 +297,9 @@ static void integrationTests(){
     for(const auto& name:{L"profile/Scripts/Export.lua",L"profile/Scripts/Export.lua.before-PSVR2SimShaker",L"source/dcs/Export.lua",L"source/PSVR2SimShakerDcsBridge.dll"})fs::remove(root/name);
     for(const auto& name:{L"profile/Scripts",L"profile/Config",L"profile",L"source/dcs",L"source"})fs::remove(root/name);fs::remove(root);
 }
-int main(){try{parseTests();flightFeedTests();engineTests();gearTests();cueTests();flightDemoTests();sustainedTests();buffetPriorityTests();integrationTests();std::cout<<"PASS: profile migration, real-feed status, demo timeline, event transitions, sustained afterburner/airflow, gear rhythm, effect envelopes, stop/recovery, buffet priority and export integration\n";return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+#endif
+int main(){try{parseTests();flightFeedTests();engineTests();gearTests();cueTests();flightDemoTests();sustainedTests();buffetPriorityTests();
+#ifndef SHAKER_CORE_ONLY
+integrationTests();
+#endif
+std::cout<<"PASS: profile migration, real-feed status, demo timeline, event transitions, sustained afterburner/airflow, gear rhythm, effect envelopes, stop/recovery, buffet priority (Windows builds also check export integration)\n";return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -7,6 +7,12 @@
 
 namespace shaker {
 namespace fs=std::filesystem;
+enum class Presence { Unknown, Absent, Present };
+struct SystemStatus {
+    Presence headset=Presence::Unknown,steamVR=Presence::Unknown,dcs=Presence::Unknown;
+};
+// Read-only OS inventory. Does not open a headset or initialize SteamVR.
+SystemStatus readSystemStatus();
 std::string utf8(const std::wstring& text);
 std::wstring wide(const std::string& text);
 fs::path appDirectory();

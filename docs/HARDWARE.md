@@ -14,7 +14,7 @@ For an ERM, rotating-force amplitude follows `F = m r (2 pi f)^2`; speed and for
 
 ## Output shaping
 
-The app maps telemetry into bounded command envelopes. Impacts and ignition have finite durations and quiet recovery. Gunfire becomes a sustained burst cue. Continuous effects use smoothing and limited stop fades. A priority mixer selects one cue, including its quiet gaps, rather than summing motor frequencies.
+The app maps telemetry into bounded command envelopes. Impacts and ignition have finite durations and retrigger recovery. Gunfire becomes a sustained burst cue. Continuous effects use smoothing and limited stop fades. A priority mixer selects the highest-priority active cue. Background effects keep advancing underneath and resume on the next control tick when a foreground event ends. Gear retains deliberate internal quiet gaps; separate motor frequencies are not summed.
 
 Zero-command gaps let the motor coast between sensations; they are not active braking. The response-curve control adjusts intermediate command values while preserving zero and the selected endpoints. It is a subjective tuning control, not calibrated force compensation. See [effect timings](EFFECTS.md).
 
@@ -23,3 +23,24 @@ Zero-command gaps let the motor coast between sensations; they are not active br
 **Headset → Test headset** sends four 500 ms bursts separated by 250 ms gaps. This direct test uses the selected 10–25 command independently of the flight ceiling. Cue tests and Demo flight respect Master and the ceiling.
 
 Use **Fine-tune your useful range** to select the lowest useful command and preferred ceiling, then fit the cues to that range. Hardware acknowledgements confirm API completion, not physical motor movement. Objective frequency and rise/decay measurements require an external sensor and repeatable mounting.
+
+## Haptic test pane
+
+**Tests** provides steady rumble, sweep, single pulse, double knock, pulsing rumble
+and pulse over rumble. Click a pattern name to play it. Every graph uses the same
+six-second time scale and 0-25 command scale. Timing controls use 20 ms steps;
+Windows scheduling and motor response can add delay.
+
+Strength and timing sliders change the next playback. Controls for the playing
+row are locked until it ends. All patterns include a half-second lead-in and stop
+by 5.5 seconds. The layered test holds a background command, raises it for a pulse
+at two seconds, then returns directly to the background without a zero command.
+Graphs and playback use the same command function, including the selected ceiling.
+They show requests, not measured motor motion.
+
+These are direct command tests: the ceiling and Stop/mute apply; flight Master
+and response curves do not. Test parameters last for this app session. DCS output
+is paused while this pane is open. Stop test cancels playback and leaves the pane
+quiet. Leaving the pane cancels playback and returns to normal flight handling.
+Use the global STOP button to mute all output. Test completion never queues another
+test. Physical response, minimum distinguishable pulse and gap remain unmeasured.

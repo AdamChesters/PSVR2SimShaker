@@ -17,6 +17,8 @@ struct Release {
 };
 // SemVer precedence, including Alpha/Beta releases. Invalid versions are rejected.
 int compareVersions(const std::string& left,const std::string& right);
+bool shouldShowChangelog(const std::string& lastShown,const std::string& current,bool existingSettings);
+std::string latestChangelog(const std::string& markdown);
 std::optional<Release> newestRelease(const Json& releases);
 bool allowedUpdateUrl(const std::string& url,bool assetRedirect=false);
 void verifyInstaller(const fs::path& path,const Release& release);

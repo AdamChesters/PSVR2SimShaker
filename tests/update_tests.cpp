@@ -21,6 +21,14 @@ int main(int argc,char** argv){
             const auto path=downloadInstaller(release,wide(argv[2]));verifyInstaller(path,release);
             std::cout<<"PASS: public release lookup, HTTPS asset download and SHA-256 verified; installer was NOT launched\n";return 0;
         }
+        CHECK(shouldShowChangelog("0.3.0-alpha.2","0.3.0-alpha.3",true));
+        CHECK(!shouldShowChangelog("0.3.0-alpha.3","0.3.0-alpha.3",true));
+        CHECK(!shouldShowChangelog("0.3.0-alpha.4","0.3.0-alpha.3",true));
+        CHECK(shouldShowChangelog("","0.3.0-alpha.3",true));
+        CHECK(!shouldShowChangelog("","0.3.0-alpha.3",false));
+        CHECK(shouldShowChangelog("broken","0.3.0-alpha.3",true));
+        CHECK(latestChangelog("# Changelog\n\n## Alpha 3\n- New\n\n## Alpha 2\n- Old")=="- New\n");
+        CHECK(latestChangelog("").find("unavailable")!=std::string::npos);
         CHECK(compareVersions("v0.2.0-alpha","0.1.3")>0);
         CHECK(compareVersions("0.2.0-alpha","0.2.0-alpha")==0);
         CHECK(compareVersions("0.2.0-alpha.2","0.2.0-alpha.10")<0);
