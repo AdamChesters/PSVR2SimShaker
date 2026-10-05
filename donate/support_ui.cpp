@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "version.hpp"
 #include "support_content.hpp"
 #include <imgui.h>
 #include <algorithm>
