@@ -3,6 +3,7 @@
 #include "haptic_tests.hpp"
 #include "platform.hpp"
 #include "updates.hpp"
+#include "feedback.hpp"
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -33,6 +34,13 @@ class App {
     std::jthread worker_,statusWorker_;
     SystemStatus system_;
     UpdateClient updates_;
+    FeedbackClient feedback_;
+    std::array<char,101> feedbackName_{};
+    std::array<char,255> feedbackEmail_{};
+    std::array<char,4001> feedbackMessage_{};
+    std::string feedbackError_;
+    bool showSupport_=false,showFeedback_=false,showUpdates_=false,feedbackPending_=false;
+    void renderSupport(void* logo);
     bool updateInstallRequested_=false;
     std::string updateLaunchError_;
     bool showChangelog_=false,changelogNeedsMark_=false;

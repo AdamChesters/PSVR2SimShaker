@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 Alpha 5
+
+- Add a prominent Feedback / Donate button and PSVR2SimShaker support panel with Discord, update status and donation links.
+- Add a feedback form that identifies this app and version, remembers contact details locally, and preserves messages when delivery fails. No telemetry or diagnostic logs are attached.
+- Existing aircraft profiles, carrier cues and detailed effects still require live-flight/headset testing.
+
 ## 0.3.0 Alpha 4
 
 - Add a Setup checklist with upstream release, installation and jailbreak links, startup order and GitHub support.

@@ -87,6 +87,15 @@ Json frameJson(const Frame& f){return {{"version",1},{"state",f.state},{"aircraf
 }
 App::App(){
     try{
+        const auto file=dataDirectory()/L"feedback-contact.json";
+        if(fs::exists(file)){
+            const auto contact=Json::parse(readText(file));
+            const auto name=contact.value("name","");const auto email=contact.value("email","");
+            if(name.size()<feedbackName_.size())std::copy(name.begin(),name.end(),feedbackName_.begin());
+            if(email.size()<feedbackEmail_.size())std::copy(email.begin(),email.end(),feedbackEmail_.begin());
+        }
+    }catch(...){}
+    try{
         const auto marker=dataDirectory()/L"update-state.json";
         std::string lastShown;
         if(fs::exists(marker))try{lastShown=Json::parse(readText(marker)).value("lastShownVersion","");}catch(...){}
@@ -170,6 +179,7 @@ void App::renderChangelog(){
     }
 }
 void App::renderUpdates(){
+    if(showUpdates_){ImGui::OpenPopup("Application updates");showUpdates_=false;}
     const auto u=updates_.status();
     const bool available=u.release&&compareVersions(u.release->version,appVersion)>0;
     const bool busy=u.state==UpdateState::Checking||u.state==UpdateState::Downloading;
@@ -342,6 +352,73 @@ void App::run(std::stop_token stop){
     haptics.update(0,GetTickCount64());haptics.stop();
 }
 
+void App::renderSupport(void* logo){
+    if(showSupport_){ImGui::OpenPopup("Feedback / Donate");showSupport_=false;}
+    const auto viewport=ImGui::GetMainViewport();
+    ImGui::SetNextWindowSize({std::min(680.f,viewport->Size.x-32),std::min(740.f,viewport->Size.y-32)},ImGuiCond_Appearing);
+    ImGui::SetNextWindowPos(viewport->GetCenter(),ImGuiCond_Appearing,{.5f,.5f});
+    if(ImGui::BeginPopupModal("Feedback / Donate",nullptr,ImGuiWindowFlags_NoSavedSettings)){
+        if(logo){ImGui::SetCursorPosX((ImGui::GetWindowWidth()-80)*.5f);ImGui::Image(ImTextureID(reinterpret_cast<uintptr_t>(logo)),{80,80});}
+        const char* title="PSVR2SimShaker";
+        ImGui::SetCursorPosX(std::max(0.f,(ImGui::GetWindowWidth()-ImGui::CalcTextSize(title).x)*.5f));ImGui::TextUnformatted(title);
+        ImGui::Text("Version %s",appVersionDisplay);
+        const auto update=updates_.status();mutedText(update.message.c_str());
+        auto link=[](const char* label,const wchar_t* url){if(ImGui::Button(label,{0,44}))ShellExecuteW(nullptr,L"open",url,nullptr,nullptr,SW_SHOWNORMAL);};
+        link("Join the Discord",L"https://discord.gg/fs4WyaQPA");
+        continueRow("Check for updates");
+        ImGui::BeginDisabled(update.state==UpdateState::Checking||update.state==UpdateState::Downloading);
+        if(ImGui::Button("Check for updates",{0,44}))updates_.check();ImGui::EndDisabled();
+        continueRow("Feedback");if(ImGui::Button("Feedback",{0,44})){showFeedback_=true;ImGui::CloseCurrentPopup();}
+        if(update.release&&compareVersions(update.release->version,appVersion)>0){
+            if(ImGui::Button("Update details",{0,44})){showUpdates_=true;ImGui::CloseCurrentPopup();}
+        }
+        ImGui::Spacing();ImGui::TextWrapped("Thanks for using PSVR2SimShaker. Feedback is always welcome. The quickest way to get my attention is the Feedback button above. You can also open an issue on GitHub or join the Discord.");
+        ImGui::Spacing();ImGui::TextWrapped("In the meantime, I have a variety of other fun software projects. Check out:");
+        link("GitHub",L"https://github.com/AdamChesters");continueRow("AdamCh.com");link("AdamCh.com",L"https://adamch.com");
+        ImGui::Separator();ImGui::TextUnformatted("Donate");
+        ImGui::TextWrapped("I love making things. Anything I've ever built has been to have fun, share fun, and make life a bit easier. If you got value from one of these things, and you'd like to chuck us a coffee, a bottle, or a god damned Ferrari, go your hardest. Then hustle over to discord to claim your supporter role!");
+        if(ImGui::BeginTable("DonationButtons",3,ImGuiTableFlags_SizingStretchSame)){
+            ImGui::TableNextColumn();link("GitHub Sponsors",L"https://github.com/sponsors/AdamChesters");mutedText("Account required\n0% fees to creator");
+            ImGui::TableNextColumn();link("Buy Me a Coffee",L"https://buymeacoffee.com/adamch");mutedText("Guest checkout available");
+            ImGui::TableNextColumn();link("Donate with PayPal",L"https://www.paypal.com/donate/?business=KLHSZPXTSVSAU&no_recurring=0&item_name=I%27ve+donated+to+lots+of+small+creators+for+their+useful+little+tools%2C+now+I+create+them.+Dig+one?+I%27d+love+your+support.&currency_code=AUD");mutedText("Guest checkout available\nLeast preferred option");
+            ImGui::EndTable();
+        }
+        ImGui::Spacing();if(ImGui::Button("Close",{100,44}))ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if(showFeedback_){ImGui::OpenPopup("Feedback / feature request");showFeedback_=false;}
+    ImGui::SetNextWindowSize({std::min(600.f,viewport->Size.x-32),std::min(610.f,viewport->Size.y-32)},ImGuiCond_Appearing);
+    ImGui::SetNextWindowPos(viewport->GetCenter(),ImGuiCond_Appearing,{.5f,.5f});
+    if(ImGui::BeginPopupModal("Feedback / feature request",nullptr,ImGuiWindowFlags_NoSavedSettings)){
+        auto status=feedback_.status();
+        if(feedbackPending_&&status.state!=FeedbackState::Sending){
+            feedbackPending_=false;if(status.state==FeedbackState::Sent)feedbackMessage_.fill(0);
+        }
+        const bool busy=status.state==FeedbackState::Sending;
+        ImGui::TextWrapped("Have an idea or found a problem? Send it to the PSVR2SimShaker team.");
+        ImGui::BeginDisabled(busy);
+        ImGui::TextUnformatted("Name");ImGui::SetNextItemWidth(-1);ImGui::InputText("##FeedbackName",feedbackName_.data(),feedbackName_.size());
+        ImGui::TextUnformatted("Email");ImGui::SetNextItemWidth(-1);ImGui::InputText("##FeedbackEmail",feedbackEmail_.data(),feedbackEmail_.size());
+        mutedText("Your name and email are remembered on this computer.");
+        ImGui::TextUnformatted("Message");ImGui::InputTextMultiline("##FeedbackMessage",feedbackMessage_.data(),feedbackMessage_.size(),{-1,150});
+        ImGui::EndDisabled();
+        mutedText("Only these fields, the app name and version are sent. No simulator telemetry or diagnostic logs are attached.");
+        if(!feedbackError_.empty())ImGui::TextWrapped("%s",feedbackError_.c_str());
+        if(!status.message.empty())ImGui::TextWrapped("%s",status.message.c_str());
+        if(ImGui::Button("Close",{100,44}))ImGui::CloseCurrentPopup();continueRow("Send feedback");
+        ImGui::BeginDisabled(busy);
+        if(ImGui::Button("Send feedback",{0,44})){
+            feedbackError_.clear();
+            try{
+                auto body=feedbackPayload(feedbackName_.data(),feedbackEmail_.data(),feedbackMessage_.data(),appVersion);
+                writeTextAtomic(dataDirectory()/L"feedback-contact.json",Json{{"name",body["name"]},{"email",body["email"]}}.dump(2));
+                feedback_.send(body);feedbackPending_=true;
+            }catch(const std::exception& error){feedbackError_=error.what();}
+        }
+        ImGui::EndDisabled();ImGui::EndPopup();
+    }
+}
+
 void App::render(void* logo){
     auto s=settings();const auto v=snapshot();bool changed=false;
     if(v.flight.supported)changed=s.selectAircraft(aircraftProfile(v.flight.aircraft)->id);
@@ -386,6 +463,8 @@ void App::render(void* logo){
     }
     ImGui::Spacing();
     if(ImGui::Button("Setup"))showSetup_=true;
+    continueRow("Feedback / Donate");
+    if(ImGui::Button("Feedback / Donate",{0,44}))showSupport_=true;
     renderSetup();
     const float statusWidth=ImGui::GetContentRegionAvail().x;
     const int statusColumns=statusWidth>=980.f?4:statusWidth>=640.f?2:1;
@@ -734,6 +813,7 @@ void App::render(void* logo){
     if(!message.empty())mutedText(message.c_str());
     ImGui::EndChild();
     renderChangelog();
+    renderSupport(logo);
     ImGui::End();
     if(changed){std::lock_guard lock(mutex_);settings_=s;settingsDirty_=true;saveAt_=GetTickCount64()+400;}
     if(settingsDirty_ && GetTickCount64()>=saveAt_)try{save();}catch(const std::exception& e){uiMessage_=e.what();settingsDirty_=false;}
