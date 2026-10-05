@@ -4,6 +4,7 @@
 #include "platform.hpp"
 #include "updates.hpp"
 #include "feedback.hpp"
+#include "support_identity.hpp"
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -40,7 +41,7 @@ class App {
     std::array<char,4001> feedbackMessage_{};
     std::string feedbackError_;
     bool showSupport_=false,showFeedback_=false,showUpdates_=false,feedbackPending_=false;
-    void renderSupport(void* logo);
+    void renderSupport(const SupportIdentity& identity);
     bool updateInstallRequested_=false;
     std::string updateLaunchError_;
     bool showChangelog_=false,changelogNeedsMark_=false;

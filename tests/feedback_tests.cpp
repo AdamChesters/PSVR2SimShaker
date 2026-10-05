@@ -9,7 +9,8 @@ int main(){
         bool rejected=false;try{feedbackPayload(fields[0],fields[1],fields[2],"test");}catch(...){rejected=true;}expect(rejected);
     }
     expect(feedbackAccepted(200,"{\"ok\":true}"));
-    for(const auto& response:{"{}","{\"ok\":false}","{\"ok\":\"true\"}","bad"})expect(!feedbackAccepted(200,response));
+    for(const auto& response:{"{}","{\"ok\":false}","{\"ok\":\"true\"}","{\"ok\":true,\"extra\":1}","bad"})expect(!feedbackAccepted(200,response));
+    expect(!feedbackAccepted(200,std::string("{\"ok\":true}")+std::string(1024,' ')));
     expect(!feedbackAccepted(500,"{\"ok\":true}"));
     std::cout<<"Feedback metadata, validation and explicit relay acceptance verified.\n";
 }

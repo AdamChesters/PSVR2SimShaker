@@ -29,13 +29,18 @@ void post(const Json& payload){
     require(WinHttpReceiveResponse(request,nullptr));
     DWORD status=0,size=sizeof(status);
     require(WinHttpQueryHeaders(request,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,WINHTTP_HEADER_NAME_BY_INDEX,&status,&size,WINHTTP_NO_HEADER_INDEX));
+    wchar_t contentType[256]{};DWORD typeBytes=sizeof(contentType);
+    require(WinHttpQueryHeaders(request,WINHTTP_QUERY_CONTENT_TYPE,WINHTTP_HEADER_NAME_BY_INDEX,contentType,&typeBytes,WINHTTP_NO_HEADER_INDEX));
+    auto media=utf8(contentType);media=media.substr(0,media.find(';'));
+    std::transform(media.begin(),media.end(),media.begin(),[](unsigned char c){return char(std::tolower(c));});
+    if(feedbackTrim(media)!="application/json")throw std::runtime_error("Feedback delivery returned an invalid response.");
     const auto deadline=GetTickCount64()+15000;
     std::string response;char buffer[1024];DWORD received=0;
     do{
         if(GetTickCount64()>deadline)throw std::runtime_error("Feedback delivery timed out. Please try again.");
         require(WinHttpReadData(request,buffer,sizeof(buffer),&received));
         response.append(buffer,received);
-        if(response.size()>8192)throw std::runtime_error("Feedback delivery returned an invalid response.");
+        if(response.size()>1024)throw std::runtime_error("Feedback delivery returned an invalid response.");
     }while(received);
     if(!feedbackAccepted(status,response))throw std::runtime_error("Feedback was not accepted. Please try again.");
 }
@@ -48,7 +53,7 @@ void FeedbackClient::send(const Json& payload){
     worker_=std::jthread([this,payload]{
         FeedbackStatus result;
         try{post(payload);result={FeedbackState::Sent,"Feedback sent. Thank you!"};}
-        catch(const std::exception& error){result={FeedbackState::Failed,std::string(error.what())+" Your message is still here."};}
+        catch(const std::exception& error){result={FeedbackState::Failed,supportContent()["feedback"]["failure"].get<std::string>()};}
         std::lock_guard lock(mutex_);status_=result;
     });
 }
